@@ -10,31 +10,69 @@ canvas { display:block; } /* To remove the scrollbars */
 <body>
 <canvas id="myCanvas"></canvas> 
 <script>
-(function() {
+(function() 
+{
     var canvas = document.getElementById('myCanvas'),
-        context = canvas.getContext('2d');
+    context = canvas.getContext('2d');
+    
+    var iFrame = 0;
 
     // resize the canvas to fill browser window dynamically
     window.addEventListener('resize', resizeCanvas, false);
 
     function resizeCanvas() 
     {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
-            /**
-             * Your drawings need to be inside this function otherwise they will be reset when 
-             * you resize the browser window and the canvas goes will be cleared.
-             */
-            drawStuff(); 
+        /**
+        * Your drawings need to be inside this function otherwise they will be reset when 
+        * you resize the browser window and the canvas goes will be cleared.
+        */
+        drawStuff(); 
     }
     resizeCanvas();
 
+    window.requestAnimFrame = (function(callback) 
+    {
+        return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || window.oRequestAnimationFrame || window.msRequestAnimationFrame ||
+            function(callback) {
+                window.setTimeout(callback, 1000 / 60);
+            };
+    })();
+
+    function animate() 
+    {
+        var canvas = document.getElementById('myCanvas');
+        var context = canvas.getContext('2d');
+
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        iFrame++;
+        
+        // draw stuff
+        drawStuff();
+
+        // request new frame
+        requestAnimFrame(function() {
+            animate();
+        });
+    }
+    animate();
+
     function drawStuff() 
     {
-        context.fillStyle="rgba(255,0,0,0.4)";
+        context.beginPath();
+        context.save();
+        context.fillStyle="rgba(255,200,180,0.4)";
+        context.rotate( 0.1 );
         context.fillRect(10,10,150,75);
-        context.fillRect(110,50,250,275);
+        context.restore();
+        context.save();
+        context.fillStyle="rgba(155,200,250,0.4)";
+        context.translate( 150,100);
+        context.rotate( -0.003 * iFrame );
+        context.fillRect(-50,-50,110,175);
+        context.restore();
         context.moveTo(30,30);
         context.lineTo(100,120);
         context.stroke();
