@@ -1,6 +1,7 @@
 <html>
 <title>Circle-Squaring</title>
 <head>
+<meta charset="UTF-8">
 <style>
 * { margin:0; padding:0; } /* to remove the top and left whitespace */
 html, body { width:100%; height:100%; } /* just to be sure these are full screen*/
@@ -10,6 +11,83 @@ canvas { display:block; } /* To remove the scrollbars */
 <body>
 <canvas id="myCanvas"></canvas> 
 <script>
+// ======================================
+// Point2D class
+function Point2D( x, y ) {
+    this.x = x;
+    this.y = y;
+};
+// ======================================
+// Polygon class
+function Polygon() {
+    this.points = new Array(); // a list of Point2D's
+};
+Polygon.prototype.drawPath = function( ctx ) {
+    ctx.beginPath();
+    ctx.moveTo( this.points[0].x, this.points[0].y );
+    for( var i = 1; i < this.points.length; ++i )
+        ctx.lineTo( this.points[i].x, this.points[i].y );
+    ctx.closePath();
+};
+function getCircle( center, radius, n )
+{
+    var poly = new Polygon();
+    for( var i = 0; i < n; ++i )
+    {
+        poly.points[i] = new Point2D( center.x + radius * Math.cos( i * 2.0 * Math.PI / n ), 
+                                      center.y + radius * Math.sin( i * 2.0 * Math.PI / n ) );
+    }
+    return poly;
+};
+// ======================================
+// Transform class
+function Transform( r, x, y ) {
+    this.rotate = r;
+    this.translate = new Point2D( x, y );
+};
+// ======================================
+// Piece class
+function Piece() {
+    this.atOrigin = new Polygon();              // canonical polygon with centroid at the origin
+    this.originToTarget = new Array();          // a Transform for each target
+    this.hue = Math.random() * 360.0;
+};
+Piece.prototype.draw = function( ctx ) {
+    ctx.fillStyle = "hsla("+this.hue+",50%,50%,0.3)";
+    for(var i = 0; i < this.originToTarget.length; ++i ) {
+        ctx.save();
+        ctx.translate( this.originToTarget[i].translate.x, this.originToTarget[i].translate.y );
+        ctx.rotate( this.originToTarget[i].rotate );
+        this.atOrigin.drawPath( ctx );
+        ctx.fill();
+        ctx.restore();
+    }
+};
+// ======================================
+function drawWorld( canvas, ctx, targets, pieces ) 
+{
+    // draw the background
+    ctx.fillStyle = "rgb(200,200,200)";
+    ctx.beginPath();
+    ctx.fillRect( 0, 0, canvas.width, canvas.height );
+    ctx.closePath();
+    
+    // draw the targets
+    ctx.fillStyle = "rgb(255,255,255)";
+    for( var i = 0; i < targets.length; ++i )
+    {
+        targets[i].drawPath( ctx );
+        ctx.fill();
+    }
+        
+    // draw the pieces
+    for( var i = 0; i < pieces.length; ++i )
+    {
+        pieces[i].draw( ctx );
+    }
+};
+// ======================================
+
 (function() 
 {
     var canvas = document.getElementById('myCanvas'),
@@ -17,6 +95,22 @@ canvas { display:block; } /* To remove the scrollbars */
     
     var iFrame = 0;
 
+    var pieces = new Array();
+    var test = pieces[0] = new Piece();
+    test.atOrigin.points[0] = new Point2D( -10, -10 );
+    test.atOrigin.points[1] = new Point2D( 34, 10 );
+    test.atOrigin.points[2] = new Point2D( 7, 20 );
+    test.originToTarget[0] = new Transform( 0.3, 350, 200 );
+    test.originToTarget[1] = new Transform( 0.6, 650, 350 );
+    
+    var targets = new Array();
+    targets[0] = getCircle( new Point2D( 250, 350 ), 200, 100 );
+    targets[1] = new Polygon();
+    targets[1].points[0] = new Point2D( 500, 200 );
+    targets[1].points[1] = new Point2D( 800, 200 );
+    targets[1].points[2] = new Point2D( 800, 500 );
+    targets[1].points[3] = new Point2D( 500, 500 );
+    
     // resize the canvas to fill browser window dynamically
     window.addEventListener('resize', resizeCanvas, false);
 
@@ -29,7 +123,7 @@ canvas { display:block; } /* To remove the scrollbars */
         * Your drawings need to be inside this function otherwise they will be reset when 
         * you resize the browser window and the canvas goes will be cleared.
         */
-        drawStuff(); 
+        drawWorld( canvas, context, targets, pieces ); 
     }
     resizeCanvas();
 
@@ -46,11 +140,10 @@ canvas { display:block; } /* To remove the scrollbars */
         var canvas = document.getElementById('myCanvas');
         var context = canvas.getContext('2d');
 
-        context.clearRect(0, 0, canvas.width, canvas.height);
         iFrame++;
         
         // draw stuff
-        drawStuff();
+        drawWorld( canvas, context, targets, pieces );
 
         // request new frame
         requestAnimFrame(function() {
@@ -58,25 +151,7 @@ canvas { display:block; } /* To remove the scrollbars */
         });
     }
     animate();
-
-    function drawStuff() 
-    {
-        context.beginPath();
-        context.save();
-        context.fillStyle="rgba(255,200,180,0.4)";
-        context.rotate( 0.1 );
-        context.fillRect(10,10,150,75);
-        context.restore();
-        context.save();
-        context.fillStyle="rgba(155,200,250,0.4)";
-        context.translate( 150,100);
-        context.rotate( -0.003 * iFrame );
-        context.fillRect(-50,-50,110,175);
-        context.restore();
-        context.moveTo(30,30);
-        context.lineTo(100,120);
-        context.stroke();
-    }
+    
 })();
 </script> 
 </body>
