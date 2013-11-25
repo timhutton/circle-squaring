@@ -12,11 +12,47 @@ canvas { display:block; } /* To remove the scrollbars */
 <canvas id="myCanvas"></canvas> 
 <script>
 // ======================================
+// utility functions
+function crossProduct2D( v, w ) {
+    return v.x*w.y - v.y*w.x;
+}
+// --------------------------------------
+function sub( a, b ) {
+    return new Point2D( a.x - b.x, a.y - b.y );
+}
+// --------------------------------------
+function lineSegmentsIntersect( p, p2, q, q2 ) {
+    // two line segments: [p,p2] and [q,q2] - do they intersect?
+    // http://stackoverflow.com/a/565282/126823
+    var r = sub(p2, p);
+    var s = sub(q2, q);
+
+    var uNumerator = crossProduct2D(sub(q, p), r);
+    var denominator = crossProduct2D(r, s);
+
+    if( uNumerator == 0 && denominator == 0 ) {
+        // colinear, so do they overlap?
+        return ((q.x - p.x < 0) != (q.x - p2.x < 0) != (q2.x - p.x < 0) != (q2.x - p2.x < 0)) ||
+                ((q.y - p.y < 0) != (q.y - p2.y < 0) != (q2.y - p.y < 0) != (q2.y - p2.y < 0));
+    }
+
+    if( denominator == 0 ) {
+        // lines are parallel
+        return false;
+    }
+
+    var u = uNumerator / denominator;
+    var t = crossProduct2D(sub(q, p), s) / denominator;
+
+    return (t >= 0) && (t <= 1) && (u >= 0) && (u <= 1);
+}
+// ======================================
 // Point2D class
 function Point2D( x, y ) {
     this.x = x;
     this.y = y;
 };
+// --------------------------------------
 Point2D.prototype.getAsString = function() {
     return this.x + "," + this.y;
 }
@@ -25,6 +61,7 @@ Point2D.prototype.getAsString = function() {
 function Polygon() {
     this.points = new Array(); // a list of Point2D's
 };
+// --------------------------------------
 Polygon.prototype.drawPath = function( ctx ) {
     ctx.beginPath();
     ctx.moveTo( this.points[0].x, this.points[0].y );
@@ -32,6 +69,19 @@ Polygon.prototype.drawPath = function( ctx ) {
         ctx.lineTo( this.points[i].x, this.points[i].y );
     ctx.closePath();
 };
+// --------------------------------------
+Polygon.prototype.getArea = function() {
+    //  Public-domain function by Darel Rex Finley, 2006.
+    var area=0.0;
+    var i, j = this.points.length-1;
+    for( i = 0; i < this.points.length; ++i )
+    {
+        area += ( this.points[j].x + this.points[i].x ) * ( this.points[j].y - this.points[i].y ); 
+        j = i;
+    }
+    return area * 0.5; 
+}
+// --------------------------------------
 function getCircle( center, radius, n )
 {
     var poly = new Polygon();
@@ -42,11 +92,49 @@ function getCircle( center, radius, n )
     }
     return poly;
 };
+Polygon.prototype.contains = function( p ) {
+    // move p to polygon coordinates
+    var c = false;
+    var i, j;
+    var vertxi,vertyi,vertxj,vertyj;
+    for( i = 0, j = this.points.length-1; i < this.points.length; j = i++ ) 
+    {
+        vertxi = this.points[i].x;
+        vertyi = this.points[i].y;
+        vertxj = this.points[j].x;
+        vertyj = this.points[j].y;
+        if ( ((vertyi>p.y) != (vertyj>p.y)) && (p.x < (vertxj-vertxi) * (p.y-vertyi) / (vertyj-vertyi) + vertxi) )
+        {
+            c = !c;
+        }
+    }
+    return c;
+}
+// --------------------------------------
 Polygon.prototype.getAsString = function() {
     var spec = this.points.length;
     for( var i = 0; i < this.points.length; ++i )
         spec += "," + this.points[i].getAsString();
     return spec;
+}
+// --------------------------------------
+function polygonRelation( poly1, poly2 ) {
+    // return 1 if poly1 is entirely inside poly2
+    // return -1 if poly1 is entirely outside poly2
+    // return 0 if poly1 and poly2 have intersecting line segments
+    for( var i = 0; i < poly1.points.length; ++i )
+    {
+        var p = poly1.points[ i ];
+        var p2 = poly1.points[ (i+1)%poly1.points.length ];
+        for( var j = 0; j < poly2.points.length; ++j )
+        {
+            var q = poly2.points[ j ];
+            var q2 = poly2.points[ (j+1)%poly2.points.length ];
+            if( lineSegmentsIntersect( p, p2, q, q2 ) )
+                return 0;
+        }
+    }
+    return( poly2.contains( poly1.points[0] ) ? 1 : 0 );
 }
 // ======================================
 // Transform class
@@ -54,6 +142,7 @@ function Transform( r, p ) {
     this.rotate = r;
     this.translate = p;
 };
+// --------------------------------------
 Transform.prototype.getAsString = function() {
     return this.rotate + "," + this.translate.getAsString();
 }
@@ -101,17 +190,17 @@ function World() {
     this.pieces = new Array();
     
     var test = this.pieces[0] = new Piece();
-    test.atOrigin.points[0] = new Point2D( -10, -10 );
-    test.atOrigin.points[1] = new Point2D( 34, 10 );
-    test.atOrigin.points[2] = new Point2D( 7, 20 );
+    test.atOrigin.points[0] = new Point2D( 340, 100 );
+    test.atOrigin.points[1] = new Point2D( -100, -100 );
+    test.atOrigin.points[2] = new Point2D( 70, 200 );
     test.originToTarget[0] = new Transform( 0.3, this.circleCenter );
     test.originToTarget[1] = new Transform( 0.6, this.squareCenter );
     
     var test2 = this.pieces[1] = new Piece();
-    test2.atOrigin.points[0] = new Point2D( -10, -10 );
-    test2.atOrigin.points[1] = new Point2D( 34, 10 );
-    test2.atOrigin.points[2] = new Point2D( 7, 20 );
-    test2.atOrigin.points[3] = new Point2D( -17, 5 );
+    test2.atOrigin.points[0] = new Point2D( -170, 50 );
+    test2.atOrigin.points[1] = new Point2D( 70, 200 );
+    test2.atOrigin.points[2] = new Point2D( 340, 100 );
+    test2.atOrigin.points[3] = new Point2D( -100, -100 );
     test2.originToTarget[0] = new Transform( 0.7, new Point2D( this.circleCenter.x - 50.0, this.circleCenter.y - 50.0 ) );
     test2.originToTarget[1] = new Transform( 2.8, new Point2D( this.squareCenter.x + 50.0, this.squareCenter.y - 50.0 ) );
 };
@@ -140,7 +229,21 @@ World.prototype.draw = function( canvas, context ) {
     context.fillStyle = "rgb(0,0,0)";
     context.font="12px Arial";
     context.fillText( this.getAsString(), 10, 50 );
+    context.fillText( this.pieces.length + " : " + this.getAreaCovered()*100 + "%", 10, 80 );
 };
+World.prototype.isValidSolution = function() {
+    // invalid if any piece not fully contained in each target
+    // TODO: need to transform pieces/targets first/during
+    // invalid if any piece not fully outside any other
+    // TODO: need to transform pieces first
+}
+World.prototype.getAreaCovered = function() {
+    // assumes no overlapping
+    var area = 0.0;
+    for( var i = 0; i < this.pieces.length; ++i )
+        area += this.pieces[i].atOrigin.getArea();
+    return area / ( Math.PI * this.circleRadius * this.circleRadius );
+}
 World.prototype.getAsString = function() {
     // targets:
     var spec = this.targets.length + "," + this.circleCenter.getAsString() + "," + this.circleRadius + ","
