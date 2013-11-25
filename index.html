@@ -17,6 +17,9 @@ function Point2D( x, y ) {
     this.x = x;
     this.y = y;
 };
+Point2D.prototype.getAsString = function() {
+    return this.x + "," + this.y;
+}
 // ======================================
 // Polygon class
 function Polygon() {
@@ -39,12 +42,21 @@ function getCircle( center, radius, n )
     }
     return poly;
 };
+Polygon.prototype.getAsString = function() {
+    var spec = this.points.length;
+    for( var i = 0; i < this.points.length; ++i )
+        spec += "," + this.points[i].getAsString();
+    return spec;
+}
 // ======================================
 // Transform class
-function Transform( r, x, y ) {
+function Transform( r, p ) {
     this.rotate = r;
-    this.translate = new Point2D( x, y );
+    this.translate = p;
 };
+Transform.prototype.getAsString = function() {
+    return this.rotate + "," + this.translate.getAsString();
+}
 // ======================================
 // Piece class
 function Piece() {
@@ -63,28 +75,82 @@ Piece.prototype.draw = function( ctx ) {
         ctx.restore();
     }
 };
+Piece.prototype.getAsString = function() {
+    var spec = this.atOrigin.getAsString() + "," + this.originToTarget.length + "," + this.hue;
+    for( var i = 0; i < this.originToTarget.length; ++i )
+        spec += "," + this.originToTarget[i].getAsString();
+    return spec;
+}
 // ======================================
-function drawWorld( canvas, ctx, targets, pieces ) 
-{
+// World class
+function World() {
+    this.circleCenter = new Point2D( 250, 350 );
+    this.circleRadius = 200.0;
+    
+    this.squareCenter = new Point2D( 650, 350 );
+    this.squareRadius = this.circleRadius * Math.sqrt( Math.PI ) / 2.0;
+
+    this.targets = new Array();
+    this.targets[0] = getCircle( this.circleCenter, this.circleRadius, 100 );
+    this.targets[1] = new Polygon();
+    this.targets[1].points[0] = new Point2D( this.squareCenter.x - this.squareRadius, this.squareCenter.y - this.squareRadius );
+    this.targets[1].points[1] = new Point2D( this.squareCenter.x - this.squareRadius, this.squareCenter.y + this.squareRadius );
+    this.targets[1].points[2] = new Point2D( this.squareCenter.x + this.squareRadius, this.squareCenter.y + this.squareRadius );
+    this.targets[1].points[3] = new Point2D( this.squareCenter.x + this.squareRadius, this.squareCenter.y - this.squareRadius );
+
+    this.pieces = new Array();
+    
+    var test = this.pieces[0] = new Piece();
+    test.atOrigin.points[0] = new Point2D( -10, -10 );
+    test.atOrigin.points[1] = new Point2D( 34, 10 );
+    test.atOrigin.points[2] = new Point2D( 7, 20 );
+    test.originToTarget[0] = new Transform( 0.3, this.circleCenter );
+    test.originToTarget[1] = new Transform( 0.6, this.squareCenter );
+    
+    var test2 = this.pieces[1] = new Piece();
+    test2.atOrigin.points[0] = new Point2D( -10, -10 );
+    test2.atOrigin.points[1] = new Point2D( 34, 10 );
+    test2.atOrigin.points[2] = new Point2D( 7, 20 );
+    test2.atOrigin.points[2] = new Point2D( -17, 30 );
+    test2.originToTarget[0] = new Transform( 0.7, new Point2D( this.circleCenter.x - 50.0, this.circleCenter.y - 50.0 ) );
+    test2.originToTarget[1] = new Transform( 0.8, new Point2D( this.squareCenter.x + 50.0, this.squareCenter.y - 50.0 ) );
+};
+World.prototype.draw = function( canvas, context ) {
     // draw the background
-    ctx.fillStyle = "rgb(200,200,200)";
-    ctx.beginPath();
-    ctx.fillRect( 0, 0, canvas.width, canvas.height );
-    ctx.closePath();
+    context.fillStyle = "rgb(200,200,200)";
+    context.beginPath();
+    context.fillRect( 0, 0, canvas.width, canvas.height );
+    context.closePath();
     
     // draw the targets
-    ctx.fillStyle = "rgb(255,255,255)";
-    for( var i = 0; i < targets.length; ++i )
+    context.fillStyle = "rgb(255,255,255)";
+    for( var i = 0; i < this.targets.length; ++i )
     {
-        targets[i].drawPath( ctx );
-        ctx.fill();
+        this.targets[i].drawPath( context );
+        context.fill();
     }
         
     // draw the pieces
-    for( var i = 0; i < pieces.length; ++i )
+    for( var i = 0; i < this.pieces.length; ++i )
     {
-        pieces[i].draw( ctx );
+        this.pieces[i].draw( context );
     }
+    
+    // DEBUG: draw the spec string
+    context.fillStyle = "rgb(0,0,0)";
+    context.font="12px Arial";
+    context.fillText( this.getAsString(), 10, 50 );
+};
+World.prototype.getAsString = function() {
+    // targets:
+    var spec = this.targets.length + "," + this.circleCenter.getAsString() + "," + this.circleRadius + ","
+                + this.squareCenter.getAsString() + "," + this.squareRadius;
+                
+    // pieces:
+    spec += "," + this.pieces.length;
+    for( var i = 0; i < this.pieces.length; ++i )
+        spec += "," + this.pieces[i].getAsString();
+    return spec;
 };
 // ======================================
 
@@ -93,24 +159,8 @@ function drawWorld( canvas, ctx, targets, pieces )
     var canvas = document.getElementById('myCanvas'),
     context = canvas.getContext('2d');
     
-    var iFrame = 0;
+    var world = new World();
 
-    var pieces = new Array();
-    var test = pieces[0] = new Piece();
-    test.atOrigin.points[0] = new Point2D( -10, -10 );
-    test.atOrigin.points[1] = new Point2D( 34, 10 );
-    test.atOrigin.points[2] = new Point2D( 7, 20 );
-    test.originToTarget[0] = new Transform( 0.3, 350, 200 );
-    test.originToTarget[1] = new Transform( 0.6, 650, 350 );
-    
-    var targets = new Array();
-    targets[0] = getCircle( new Point2D( 250, 350 ), 200, 100 );
-    targets[1] = new Polygon();
-    targets[1].points[0] = new Point2D( 500, 200 );
-    targets[1].points[1] = new Point2D( 800, 200 );
-    targets[1].points[2] = new Point2D( 800, 500 );
-    targets[1].points[3] = new Point2D( 500, 500 );
-    
     // resize the canvas to fill browser window dynamically
     window.addEventListener('resize', resizeCanvas, false);
 
@@ -123,7 +173,7 @@ function drawWorld( canvas, ctx, targets, pieces )
         * Your drawings need to be inside this function otherwise they will be reset when 
         * you resize the browser window and the canvas goes will be cleared.
         */
-        drawWorld( canvas, context, targets, pieces ); 
+        world.draw( canvas, context ); 
     }
     resizeCanvas();
 
@@ -140,10 +190,8 @@ function drawWorld( canvas, ctx, targets, pieces )
         var canvas = document.getElementById('myCanvas');
         var context = canvas.getContext('2d');
 
-        iFrame++;
-        
         // draw stuff
-        drawWorld( canvas, context, targets, pieces );
+        world.draw( canvas, context );
 
         // request new frame
         requestAnimFrame(function() {
