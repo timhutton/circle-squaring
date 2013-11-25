@@ -134,7 +134,7 @@ function polygonRelation( poly1, poly2 ) {
                 return 0;
         }
     }
-    return( poly2.contains( poly1.points[0] ) ? 1 : 0 );
+    return( poly2.contains( poly1.points[0] ) ? 1 : -1 );
 }
 // ======================================
 // Transform class
