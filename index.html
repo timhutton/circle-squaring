@@ -206,17 +206,17 @@ function World() {
     this.pieces = new Array();
     
     var test = this.pieces[0] = new Piece();
-    test.atOrigin.points[0] = new Point2D( 340, 100 );
-    test.atOrigin.points[1] = new Point2D( -100, -100 );
-    test.atOrigin.points[2] = new Point2D( 70, 200 );
+    test.atOrigin.points[0] = new Point2D( 34, 10 );
+    test.atOrigin.points[1] = new Point2D( -10, -10 );
+    test.atOrigin.points[2] = new Point2D( 7, 20 );
     test.originToTarget[0] = new Transform( 0.3, this.circleCenter );
     test.originToTarget[1] = new Transform( 0.6, this.squareCenter );
     
     var test2 = this.pieces[1] = new Piece();
-    test2.atOrigin.points[0] = new Point2D( -170, 50 );
-    test2.atOrigin.points[1] = new Point2D( 70, 200 );
-    test2.atOrigin.points[2] = new Point2D( 340, 100 );
-    test2.atOrigin.points[3] = new Point2D( -100, -100 );
+    test2.atOrigin.points[0] = new Point2D( -17, 50 );
+    test2.atOrigin.points[1] = new Point2D( 70, 20 );
+    test2.atOrigin.points[2] = new Point2D( 34, 10 );
+    test2.atOrigin.points[3] = new Point2D( -10, -10 );
     test2.originToTarget[0] = new Transform( 0.7, new Point2D( this.circleCenter.x - 50.0, this.circleCenter.y - 50.0 ) );
     test2.originToTarget[1] = new Transform( 2.8, new Point2D( this.squareCenter.x + 50.0, this.squareCenter.y - 50.0 ) );
 };
@@ -256,18 +256,17 @@ World.prototype.draw = function( canvas, context ) {
 World.prototype.isValidSolution = function() {
     var polysOnTarget = new Array();
     for( var iTarget = 0; iTarget < this.targets.length; ++iTarget ) {
-        // transform each piece onto this target
-        for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) 
+        for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
+            // transform each piece onto this target
             polysOnTarget[ iPiece ] = this.pieces[ iPiece ].getPolygonOnTarget( iTarget );
-        // invalid if any piece not fully contained in each target
-        for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) 
+            // invalid if any piece not fully contained in each target
             if( polysOnTarget[ iPiece ].getPolygonRelationWith( this.targets[ iTarget ] ) != PolygonRelationEnum.contained ) 
                 return false;
-        // invalid if any piece not fully outside any other
-        for( var iPiece = 0; iPiece < this.pieces.length - 1; ++iPiece ) 
-            for( var iPiece2 = iPiece + 1; iPiece2 < this.pieces.length; ++iPiece2 ) 
+            // invalid if any piece not fully outside any other
+            for( var iPiece2 = 0; iPiece2 < iPiece; ++iPiece2 ) 
                 if( polysOnTarget[ iPiece ].getPolygonRelationWith( polysOnTarget[ iPiece2 ] ) != PolygonRelationEnum.disjoint ) 
                     return false;
+        }
     }
     return true;
 };
@@ -291,6 +290,9 @@ World.prototype.getAsString = function() {
         spec += "," + this.pieces[i].getAsString();
     return spec;
 };
+World.prototype.onMouseMove = function( evt ) {
+    this.pieces[0].originToTarget[0].translate = new Point2D( evt.clientX, evt.clientY );
+};
 // ======================================
 
 (function() 
@@ -302,6 +304,11 @@ World.prototype.getAsString = function() {
 
     // resize the canvas to fill browser window dynamically
     window.addEventListener('resize', resizeCanvas, false);
+    
+    canvas.addEventListener('mousemove', function(evt) {
+        world.onMouseMove( evt );
+        world.draw( canvas, context );
+      }, false);
 
     function resizeCanvas() 
     {
