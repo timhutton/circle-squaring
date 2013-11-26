@@ -57,6 +57,21 @@ Point2D.prototype.getAsString = function() {
     return this.x + "," + this.y;
 }
 // ======================================
+// Transform class
+function Transform( r, p ) {
+    this.rotate = r;           // radians
+    this.translate = p;        // Point2D
+};
+// --------------------------------------
+Transform.prototype.apply = function( p ) {
+    return new Point2D( p.x * Math.cos( this.rotate ) - p.y * Math.sin( this.rotate ) + this.translate.x, 
+                        p.x * Math.sin( this.rotate ) + p.y * Math.cos( this.rotate ) + this.translate.y );
+};
+// --------------------------------------
+Transform.prototype.getAsString = function() {
+    return this.rotate + "," + this.translate.getAsString();
+};
+// ======================================
 // Polygon class
 function Polygon() {
     this.points = new Array(); // a list of Point2D's
@@ -138,20 +153,12 @@ Polygon.prototype.getPolygonRelationWith = function( poly ) {
         return PolygonRelationEnum.containing;
     return PolygonRelationEnum.disjoint;
 };
-// ======================================
-// Transform class
-function Transform( r, p ) {
-    this.rotate = r;
-    this.translate = p;
-};
 // --------------------------------------
-Transform.prototype.apply = function( p ) {
-    return new Point2D( p.x * Math.cos( this.rotate ) - p.y * Math.sin( this.rotate ) + this.translate.x, 
-                        p.x * Math.sin( this.rotate ) + p.y * Math.cos( this.rotate ) + this.translate.y );
-};
-// --------------------------------------
-Transform.prototype.getAsString = function() {
-    return this.rotate + "," + this.translate.getAsString();
+Polygon.prototype.getTransformed = function( t ) {
+    var poly = new Polygon();
+    for( var iPt = 0; iPt < this.points.length; ++iPt )
+        poly.points[ iPt ] = t.apply( this.points[ iPt ] );
+    return poly;
 };
 // ======================================
 // Piece class
@@ -181,10 +188,7 @@ Piece.prototype.getAsString = function() {
 }
 // --------------------------------------
 Piece.prototype.getPolygonOnTarget = function( iTarget ) {
-    var poly = new Polygon();
-    for( var iPt = 0; iPt < this.atOrigin.points.length; ++iPt )
-        poly.points[ iPt ] = this.originToTarget[ iTarget ].apply( this.atOrigin.points[ iPt ] );
-    return poly;
+    return this.atOrigin.getTransformed( this.originToTarget[ iTarget ] );
 };
 // ======================================
 // World class
@@ -196,6 +200,7 @@ function World() {
     this.squareRadius = this.circleRadius * Math.sqrt( Math.PI ) / 2.0;
 
     this.targets = new Array();
+    
     this.targets[0] = getCircle( this.circleCenter, this.circleRadius, 100 );
     this.targets[1] = new Polygon();
     this.targets[1].points[0] = new Point2D( this.squareCenter.x - this.squareRadius, this.squareCenter.y - this.squareRadius );
@@ -221,7 +226,9 @@ function World() {
     test2.originToTarget[1] = new Transform( 2.8, new Point2D( this.squareCenter.x + 50.0, this.squareCenter.y - 50.0 ) );
 };
 // --------------------------------------
-World.prototype.draw = function( canvas, context ) {
+World.prototype.draw = function( canvas ) {
+    var context = canvas.getContext( "2d" );
+    
     // draw the background
     context.fillStyle = "rgb(200,200,200)";
     context.beginPath();
@@ -290,62 +297,74 @@ World.prototype.getAsString = function() {
         spec += "," + this.pieces[i].getAsString();
     return spec;
 };
+// --------------------------------------
+World.prototype.onMouseLeftDown = function( evt ) {
+};
+// --------------------------------------
+World.prototype.onMouseLeftUp = function( evt ) {
+};
+// --------------------------------------
 World.prototype.onMouseMove = function( evt ) {
+};
+// --------------------------------------
+World.prototype.onMouseLeftDrag = function( evt ) {
+    // DEBUG: show something moving
     this.pieces[0].originToTarget[0].translate = new Point2D( evt.clientX, evt.clientY );
 };
 // ======================================
 
 (function() 
 {
-    var canvas = document.getElementById('myCanvas'),
-    context = canvas.getContext('2d');
+    var canvas  = document.getElementById( 'myCanvas' );
+    var context = canvas.getContext( '2d' );
+    var world   = new World();
+    var mouseLeftDown = false;
     
-    var world = new World();
-
-    // resize the canvas to fill browser window dynamically
-    window.addEventListener('resize', resizeCanvas, false);
+    resizeCanvas();
     
-    canvas.addEventListener('mousemove', function(evt) {
-        world.onMouseMove( evt );
-        world.draw( canvas, context );
-      }, false);
+    // events:
 
-    function resizeCanvas() 
-    {
+    window.addEventListener( 'resize', resizeCanvas, false );
+    function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-
-        /**
-        * Your drawings need to be inside this function otherwise they will be reset when 
-        * you resize the browser window and the canvas goes will be cleared.
-        */
-        world.draw( canvas, context ); 
-    }
-    resizeCanvas();
-
-    window.requestAnimFrame = (function(callback) 
-    {
-        return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || window.oRequestAnimationFrame || window.msRequestAnimationFrame ||
-            function(callback) {
-                window.setTimeout(callback, 1000 / 60);
-            };
-    })();
-
-    function animate() 
-    {
-        var canvas = document.getElementById('myCanvas');
-        var context = canvas.getContext('2d');
-
-        // draw stuff
-        world.draw( canvas, context );
-
-        // request new frame
-        requestAnimFrame(function() {
-            animate();
-        });
-    }
-    animate();
+        world.draw( canvas ); 
+    };
     
+    canvas.addEventListener( 'mousemove', function( evt ) {
+        if( mouseLeftDown )
+            world.onMouseLeftDrag( evt );
+        else
+            world.onMouseMove( evt );
+        world.draw( canvas );
+      }, false );
+
+    canvas.addEventListener( 'mousedown', function( evt ) {
+        if( evt.button == 0 ) {
+            mouseLeftDown = true;
+            world.onMouseLeftDown( evt );
+            world.draw( canvas );
+        }
+      }, false );
+
+    canvas.addEventListener( 'mouseup', function( evt ) {
+        if( evt.button == 0 && mouseLeftDown ) {
+            mouseLeftDown = false;
+            world.onMouseLeftUp( evt );
+            world.draw( canvas );
+        }
+      }, false );
+      
+    canvas.addEventListener( 'mouseout', function( evt ) {
+        // if user drags the mouse out and then releases we won't receive the mouseUp event,
+        // so instead we treat mouseOut as mouseUp (if button is pressed)
+        if( mouseLeftDown ) {
+            mouseLeftDown = false;
+            world.onMouseLeftUp( evt );
+            world.draw( canvas );
+        }
+      }, false );
+      
 })();
 </script> 
 </body>
