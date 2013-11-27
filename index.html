@@ -66,6 +66,10 @@ Point2D.prototype.sub = function( p ) {
     return this;
 };
 // --------------------------------------
+Point2D.prototype.dist = function( p ) {
+    return Math.sqrt( Math.pow( this.x - p.x, 2 ) + Math.pow( this.y - p.y, 2 ) );
+};
+// --------------------------------------
 Point2D.prototype.getAsString = function() {
     return this.x + "," + this.y;
 };
@@ -79,6 +83,11 @@ function Transform( r, p ) {
 Transform.prototype.apply = function( p ) {
     return new Point2D( p.x * Math.cos( this.rotate ) - p.y * Math.sin( this.rotate ) + this.translate.x, 
                         p.x * Math.sin( this.rotate ) + p.y * Math.cos( this.rotate ) + this.translate.y );
+};
+// --------------------------------------
+Transform.prototype.applyInverse = function( p ) {
+    return new Point2D( ( p.x - this.translate.x ) * Math.cos( -this.rotate ) - ( p.y - this.translate.y ) * Math.sin( -this.rotate ), 
+                        ( p.x - this.translate.x ) * Math.sin( -this.rotate ) + ( p.y - this.translate.y ) * Math.cos( -this.rotate ) );
 };
 // --------------------------------------
 Transform.prototype.getAsString = function() {
@@ -181,17 +190,19 @@ function Piece() {
     this.isHighlighted = false;
     this.isSelected = false;
     this.isDragging = false;
+    this.isDraggingVertex = false;
+    this.iVertexBeingDragged = -1;
     this.whichTargetSelected = -1;
     this.draggingPoint = null;
     this.hue = Math.random() * 360.0;
 };
 // --------------------------------------
 Piece.prototype.draw = function( ctx ) {
-    if( this.isSelected || this.isHighlighted )
-        ctx.fillStyle = "hsla("+this.hue+",100%,50%,0.8)";
-    else
-        ctx.fillStyle = "hsla("+this.hue+",80%,50%,0.3)";
     for(var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget ) {
+        if( this.isSelected || this.isHighlighted )
+            ctx.fillStyle = "hsla("+this.hue+",100%,50%,0.8)";
+        else
+            ctx.fillStyle = "hsla("+this.hue+",80%,50%,0.3)";
         ctx.save();
         ctx.translate( this.originToTarget[ iTarget ].translate.x, this.originToTarget[ iTarget ].translate.y );
         ctx.rotate( this.originToTarget[ iTarget ].rotate );
@@ -199,6 +210,17 @@ Piece.prototype.draw = function( ctx ) {
         ctx.fill();
         if( this.isSelected && ( this.whichTargetSelected == iTarget ) ) {
             ctx.stroke();
+            // draw vertex handles
+            ctx.fillStyle = "rgba(0,0,0,0.4)";
+            for( var iVert = 0; iVert < this.atOrigin.points.length; ++iVert ) {
+                ctx.beginPath();
+                ctx.arc( this.atOrigin.points[ iVert ].x, this.atOrigin.points[ iVert ].y, 5, 0, 2*Math.PI );
+                if( this.isDraggingVertex && this.iVertexBeingDragged == iVert )
+                    ctx.stroke();
+                else
+                    ctx.fill();
+                ctx.closePath();
+            }
         }
         ctx.restore();
     }
@@ -214,6 +236,7 @@ Piece.prototype.getAsString = function() {
 Piece.prototype.getPolygonOnTarget = function( iTarget ) {
     return this.atOrigin.getTransformed( this.originToTarget[ iTarget ] );
 };
+// TODO: cache this, update when needed
 // --------------------------------------
 Piece.prototype.onMouseMove = function( evt ) {
     this.isHighlighted = false;
@@ -229,16 +252,29 @@ Piece.prototype.onMouseMove = function( evt ) {
 };
 // --------------------------------------
 Piece.prototype.onMouseLeftDown = function( evt ) {
-    // assume for now nothing is selected
-    var p = new Point2D( evt.clientX, evt.clientY );
+    var mousePos = new Point2D( evt.clientX, evt.clientY );
+    // first check if picking up a vertex
+    if( this.isSelected )
+    {
+        var pAtOrigin = this.originToTarget[ this.whichTargetSelected ].applyInverse( mousePos );
+        for( var iVert = 0; iVert < this.atOrigin.points.length; ++iVert ) {
+            if( pAtOrigin.dist( this.atOrigin.points[ iVert ] ) < 5 ) {
+                this.isDraggingVertex = true;
+                this.iVertexBeingDragged = iVert;
+                this.draggingPoint = pAtOrigin;
+                return true;
+            }
+        }
+    }
+    // check if picking up the piece
     for( var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget )
     {
         var polygonOnTarget = this.getPolygonOnTarget( iTarget );
-        if( polygonOnTarget.contains( p ) )
+        if( polygonOnTarget.contains( mousePos ) )
         {
             this.isSelected = true;
             this.isDragging = true;
-            this.draggingPoint = p;
+            this.draggingPoint = mousePos;
             this.whichTargetSelected = iTarget;
             return true;
         }
@@ -247,10 +283,16 @@ Piece.prototype.onMouseLeftDown = function( evt ) {
 };
 // --------------------------------------
 Piece.prototype.onMouseLeftDrag = function( evt ) {
-    if( this.isDragging ) {
-        var p = new Point2D( evt.clientX, evt.clientY );
-        this.originToTarget[ this.whichTargetSelected ].translate.add( sub( p, this.draggingPoint ) );
-        this.draggingPoint = p;
+    if( this.isDraggingVertex ) {
+        var mousePos = new Point2D( evt.clientX, evt.clientY );
+        var pAtOrigin = this.originToTarget[ this.whichTargetSelected].applyInverse( mousePos );
+        this.atOrigin.points[ this.iVertexBeingDragged ].add( sub( pAtOrigin, this.draggingPoint ) );
+        this.draggingPoint = pAtOrigin;
+    }
+    else if( this.isDragging ) {
+        var mousePos = new Point2D( evt.clientX, evt.clientY );
+        this.originToTarget[ this.whichTargetSelected ].translate.add( sub( mousePos, this.draggingPoint ) );
+        this.draggingPoint = mousePos;
     }
 };
 // ======================================
@@ -306,7 +348,7 @@ World.prototype.draw = function( canvas ) {
         context.fill();
     }
         
-    // draw the pieces (in reverse order, so transparency and selection behavior match
+    // draw the pieces (in reverse order so that the transparency appearance matches the selection behavior)
     for( var iPiece = this.pieces.length - 1; iPiece >= 0; --iPiece )
         this.pieces[ iPiece ].draw( context );
     
@@ -366,18 +408,27 @@ World.prototype.onMouseMove = function( evt ) {
 };
 // --------------------------------------
 World.prototype.onMouseLeftDown = function( evt ) {
-    // first unselect everything
-    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
-        this.pieces[ iPiece ].isSelected = false;
     // select whichever piece is underneath
-    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
-        if( this.pieces[ iPiece ].onMouseLeftDown( evt ) )
+    var iPieceSelected = -1;
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
+        if( this.pieces[ iPiece ].onMouseLeftDown( evt ) ) {
+            iPieceSelected = iPiece;
             break; // we only allow one piece to accept the event
+        }
+    }
+    // deselect the others
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
+        if( iPiece != iPieceSelected )
+            this.pieces[ iPiece ].isSelected = false;
+    }
 };
 // --------------------------------------
 World.prototype.onMouseLeftUp = function( evt ) {
-    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
-        this.pieces[ iPiece ].isDragging = false;
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
+        var piece = this.pieces[ iPiece ];
+        piece.isDragging = false;
+        piece.isDraggingVertex = false;
+    }
 };
 // --------------------------------------
 World.prototype.onMouseLeftDrag = function( evt ) {
