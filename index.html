@@ -54,9 +54,21 @@ function Point2D( x, y ) {
     this.y = y;
 };
 // --------------------------------------
+Point2D.prototype.add = function( p ) {
+    this.x += p.x;
+    this.y += p.y;
+    return this;
+};
+// --------------------------------------
+Point2D.prototype.sub = function( p ) {
+    this.x -= p.x;
+    this.y -= p.y;
+    return this;
+};
+// --------------------------------------
 Point2D.prototype.getAsString = function() {
     return this.x + "," + this.y;
-}
+};
 // ======================================
 // Transform class
 function Transform( r, p ) {
@@ -166,24 +178,28 @@ Polygon.prototype.getTransformed = function( t ) {
 function Piece() {
     this.atOrigin = new Polygon();              // canonical polygon with centroid at the origin
     this.originToTarget = new Array();          // a Transform for each target
+    this.isHighlighted = false;
     this.isSelected = false;
+    this.isDragging = false;
+    this.whichTargetSelected = -1;
+    this.draggingPoint = null;
     this.hue = Math.random() * 360.0;
-    this.isGrabbed = false;
-    this.whichTargetGrabbed = -1;
-    this.whereGrabbed = null;
 };
 // --------------------------------------
 Piece.prototype.draw = function( ctx ) {
-    if( this.isSelected )
+    if( this.isSelected || this.isHighlighted )
         ctx.fillStyle = "hsla("+this.hue+",100%,50%,0.8)";
     else
         ctx.fillStyle = "hsla("+this.hue+",80%,50%,0.3)";
-    for(var i = 0; i < this.originToTarget.length; ++i ) {
+    for(var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget ) {
         ctx.save();
-        ctx.translate( this.originToTarget[i].translate.x, this.originToTarget[i].translate.y );
-        ctx.rotate( this.originToTarget[i].rotate );
+        ctx.translate( this.originToTarget[ iTarget ].translate.x, this.originToTarget[ iTarget ].translate.y );
+        ctx.rotate( this.originToTarget[ iTarget ].rotate );
         this.atOrigin.drawPath( ctx );
         ctx.fill();
+        if( this.isSelected && ( this.whichTargetSelected == iTarget ) ) {
+            ctx.stroke();
+        }
         ctx.restore();
     }
 };
@@ -200,7 +216,20 @@ Piece.prototype.getPolygonOnTarget = function( iTarget ) {
 };
 // --------------------------------------
 Piece.prototype.onMouseMove = function( evt ) {
-    this.isSelected = false;
+    this.isHighlighted = false;
+    var p = new Point2D( evt.clientX, evt.clientY );
+    for( var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget )
+    {
+        var polygonOnTarget = this.getPolygonOnTarget( iTarget );
+        if( polygonOnTarget.contains( p ) )
+        {
+            this.isHighlighted = true;
+        }
+    }
+};
+// --------------------------------------
+Piece.prototype.onMouseLeftDown = function( evt ) {
+    // assume for now nothing is selected
     var p = new Point2D( evt.clientX, evt.clientY );
     for( var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget )
     {
@@ -208,7 +237,20 @@ Piece.prototype.onMouseMove = function( evt ) {
         if( polygonOnTarget.contains( p ) )
         {
             this.isSelected = true;
+            this.isDragging = true;
+            this.draggingPoint = p;
+            this.whichTargetSelected = iTarget;
+            return true;
         }
+    }
+    return false;
+};
+// --------------------------------------
+Piece.prototype.onMouseLeftDrag = function( evt ) {
+    if( this.isDragging ) {
+        var p = new Point2D( evt.clientX, evt.clientY );
+        this.originToTarget[ this.whichTargetSelected ].translate.add( sub( p, this.draggingPoint ) );
+        this.draggingPoint = p;
     }
 };
 // ======================================
@@ -264,11 +306,9 @@ World.prototype.draw = function( canvas ) {
         context.fill();
     }
         
-    // draw the pieces
-    for( var i = 0; i < this.pieces.length; ++i )
-    {
-        this.pieces[i].draw( context );
-    }
+    // draw the pieces (in reverse order, so transparency and selection behavior match
+    for( var iPiece = this.pieces.length - 1; iPiece >= 0; --iPiece )
+        this.pieces[ iPiece ].draw( context );
     
     // DEBUG: draw the spec string
     context.fillStyle = "rgb(0,0,0)";
@@ -326,14 +366,23 @@ World.prototype.onMouseMove = function( evt ) {
 };
 // --------------------------------------
 World.prototype.onMouseLeftDown = function( evt ) {
+    // first unselect everything
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
+        this.pieces[ iPiece ].isSelected = false;
+    // select whichever piece is underneath
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
+        if( this.pieces[ iPiece ].onMouseLeftDown( evt ) )
+            break; // we only allow one piece to accept the event
 };
 // --------------------------------------
 World.prototype.onMouseLeftUp = function( evt ) {
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
+        this.pieces[ iPiece ].isDragging = false;
 };
 // --------------------------------------
 World.prototype.onMouseLeftDrag = function( evt ) {
-    // DEBUG: show something moving
-    this.pieces[0].originToTarget[0].translate = new Point2D( evt.clientX, evt.clientY );
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
+        this.pieces[ iPiece ].onMouseLeftDrag( evt );
 };
 // ======================================
 
