@@ -18,6 +18,10 @@ function crossProduct2D( v, w ) {
     return v.x*w.y - v.y*w.x;
 };
 // --------------------------------------
+function add( a, b ) {
+    return new Point2D( a.x + b.x, a.y + b.y );
+};
+// --------------------------------------
 function sub( a, b ) {
     return new Point2D( a.x - b.x, a.y - b.y );
 };
@@ -66,6 +70,12 @@ Point2D.prototype.sub = function( p ) {
     return this;
 };
 // --------------------------------------
+Point2D.prototype.div = function( f ) {
+    this.x /= f;
+    this.y /= f;
+    return this;
+};
+// --------------------------------------
 Point2D.prototype.dist = function( p ) {
     return Math.sqrt( Math.pow( this.x - p.x, 2 ) + Math.pow( this.y - p.y, 2 ) );
 };
@@ -100,6 +110,8 @@ function Polygon() {
 };
 // --------------------------------------
 Polygon.prototype.drawPath = function( ctx ) {
+    if( this.points.length == 0 ) 
+        return;
     ctx.beginPath();
     ctx.moveTo( this.points[0].x, this.points[0].y );
     for( var i = 1; i < this.points.length; ++i )
@@ -116,6 +128,13 @@ Polygon.prototype.getArea = function() {
         j = i;
     }
     return area * 0.5; 
+};
+// --------------------------------------
+Polygon.prototype.getCentroid = function() {
+    var centroid = new Point2D( 0, 0 );
+    for( var i = 0; i < this.points.length; ++i )
+        centroid.add( this.points[ i ] );
+    return centroid.div( this.points.length ); 
 };
 // --------------------------------------
 function getCircle( center, radius, n )
@@ -191,7 +210,7 @@ function Piece() {
     this.isSelected = false;
     this.isDragging = false;
     this.isDraggingVertex = false;
-    this.iVertexBeingDragged = -1;
+    this.iActiveVertex = -1;
     this.whichTargetSelected = -1;
     this.draggingPoint = null;
     this.hue = Math.random() * 360.0;
@@ -215,7 +234,7 @@ Piece.prototype.draw = function( ctx ) {
             for( var iVert = 0; iVert < this.atOrigin.points.length; ++iVert ) {
                 ctx.beginPath();
                 ctx.arc( this.atOrigin.points[ iVert ].x, this.atOrigin.points[ iVert ].y, 5, 0, 2*Math.PI );
-                if( this.isDraggingVertex && this.iVertexBeingDragged == iVert )
+                if( this.isDraggingVertex && this.iActiveVertex == iVert )
                     ctx.stroke();
                 else
                     ctx.fill();
@@ -260,7 +279,7 @@ Piece.prototype.onMouseLeftDown = function( evt ) {
         for( var iVert = 0; iVert < this.atOrigin.points.length; ++iVert ) {
             if( pAtOrigin.dist( this.atOrigin.points[ iVert ] ) < 5 ) {
                 this.isDraggingVertex = true;
-                this.iVertexBeingDragged = iVert;
+                this.iActiveVertex = iVert;
                 this.draggingPoint = pAtOrigin;
                 return true;
             }
@@ -286,7 +305,7 @@ Piece.prototype.onMouseLeftDrag = function( evt ) {
     if( this.isDraggingVertex ) {
         var mousePos = new Point2D( evt.clientX, evt.clientY );
         var pAtOrigin = this.originToTarget[ this.whichTargetSelected].applyInverse( mousePos );
-        this.atOrigin.points[ this.iVertexBeingDragged ].add( sub( pAtOrigin, this.draggingPoint ) );
+        this.atOrigin.points[ this.iActiveVertex ].add( sub( pAtOrigin, this.draggingPoint ) );
         this.draggingPoint = pAtOrigin;
     }
     else if( this.isDragging ) {
@@ -296,8 +315,66 @@ Piece.prototype.onMouseLeftDrag = function( evt ) {
     }
 };
 // ======================================
+// Button class
+function Button( label, x, y, ctx ) {
+    this.polygon = new Polygon();
+    this.shadowPolygon = new Polygon();
+    this.label = label;
+    this.isEnabled = false;
+    this.isPressed = false;
+    // initialise a rectangle around the text
+    this.fontHeight = 14;
+    ctx.font = this.fontHeight + "px Arial";
+    var textbox = ctx.measureText( label );
+    var pad = 5;
+    var shadowOffset = 4;
+    this.polygon.points[0] = new Point2D( x - textbox.width/2 - pad, y - this.fontHeight/2 - pad );
+    this.polygon.points[1] = new Point2D( x + textbox.width/2 + pad, y - this.fontHeight/2 - pad );
+    this.polygon.points[2] = new Point2D( x + textbox.width/2 + pad, y + this.fontHeight/2 + pad*2 );
+    this.polygon.points[3] = new Point2D( x - textbox.width/2 - pad, y + this.fontHeight/2 + pad*2 );
+    this.textPos = new Point2D( this.polygon.points[3].x + pad, this.polygon.points[3].y - pad*2 )
+    // make a shadow below and to the right
+    for( var i = 0; i < this.polygon.points.length; ++i )
+        this.shadowPolygon.points[ i ] = add( this.polygon.points[ i ], new Point2D( shadowOffset, shadowOffset ) );
+};
+// --------------------------------------
+Button.prototype.draw = function( ctx ) {
+    this.shadowPolygon.drawPath( ctx );
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fill();
+    this.polygon.drawPath( ctx );
+    if( !this.isEnabled )
+        ctx.fillStyle = "rgb(230,230,230)";
+    else if( this.isPressed )
+        ctx.fillStyle = "rgb(255,255,255)";
+    else
+        ctx.fillStyle = "rgb(111,202,255)";
+    ctx.fill();
+    ctx.font = this.fontHeight + "px Arial";
+    if( this.isEnabled )
+        ctx.fillStyle = "rgb(0,0,0)";
+    else
+        ctx.fillStyle = "rgb(200,200,200)";
+    ctx.fillText( this.label, this.textPos.x, this.textPos.y );
+};
+// --------------------------------------
+Button.prototype.onMouseLeftDown = function( evt ) {
+    if( !this.isEnabled )
+        return false;
+    var mousePos = new Point2D( evt.clientX, evt.clientY );
+    if( this.polygon.contains( mousePos ) ) {
+        this.isPressed = true;
+        return true;
+    }
+    return false;
+};
+// --------------------------------------
+Button.prototype.onMouseLeftUp = function( evt ) {
+    this.isPressed = false;
+};
+// ======================================
 // World class
-function World() {
+function World( ctx ) {
     this.circleCenter = new Point2D( 250, 350 );
     this.circleRadius = 200.0;
     
@@ -329,10 +406,16 @@ function World() {
     test2.atOrigin.points[3] = new Point2D( -10, -10 );
     test2.originToTarget[0] = new Transform( 0.7, new Point2D( this.circleCenter.x - 50.0, this.circleCenter.y - 50.0 ) );
     test2.originToTarget[1] = new Transform( 2.8, new Point2D( this.squareCenter.x + 50.0, this.squareCenter.y - 50.0 ) );
+    
+    this.buttons = new Array();
+    
+    this.buttons[0] = new Button( "Grow piece", 50, 20, ctx );
+    this.buttons[1] = new Button( "Submit solution!", 170, 20, ctx );
 };
 // --------------------------------------
 World.prototype.draw = function( canvas ) {
     var context = canvas.getContext( "2d" );
+    var isValidSolution = this.isValidSolution();
     
     // draw the background
     context.fillStyle = "rgb(200,200,200)";
@@ -340,10 +423,14 @@ World.prototype.draw = function( canvas ) {
     context.fillRect( 0, 0, canvas.width, canvas.height );
     context.closePath();
     
+    // draw the buttons
+    this.buttons[1].isEnabled = isValidSolution;
+    for( var iButton = 0; iButton < this.buttons.length; ++iButton )
+        this.buttons[ iButton ].draw( context );
+    
     // draw the targets
     context.fillStyle = "rgb(255,255,255)";
-    for( var i = 0; i < this.targets.length; ++i )
-    {
+    for( var i = 0; i < this.targets.length; ++i ) {
         this.targets[i].drawPath( context );
         context.fill();
     }
@@ -352,15 +439,15 @@ World.prototype.draw = function( canvas ) {
     for( var iPiece = this.pieces.length - 1; iPiece >= 0; --iPiece )
         this.pieces[ iPiece ].draw( context );
     
-    // DEBUG: draw the spec string
+    // DEBUG: show some information
     context.fillStyle = "rgb(0,0,0)";
     context.font="12px Arial";
-    context.fillText( this.getAsString(), 10, 50 );
-    context.fillText( this.pieces.length + " : " + this.getAreaCovered()*100 + "%", 10, 80 );
-    if( this.isValidSolution() )
-        context.fillText( "valid solution", 10, 110 );
+    context.fillText( this.getAsString(), 10, 70 );
+    context.fillText( this.pieces.length + " : " + this.getAreaCovered()*100 + "%", 10, 100 );
+    if( isValidSolution )
+        context.fillText( "valid solution", 10, 130 );
     else
-        context.fillText( "overlapping detected!", 10, 110 );
+        context.fillText( "overlapping detected!", 10, 130 );
 };
 // --------------------------------------
 World.prototype.isValidSolution = function() {
@@ -408,6 +495,10 @@ World.prototype.onMouseMove = function( evt ) {
 };
 // --------------------------------------
 World.prototype.onMouseLeftDown = function( evt ) {
+    // was a button pressed?
+    for( var iButton = 0; iButton < this.buttons.length; ++iButton )
+        if( this.buttons[ iButton ].onMouseLeftDown( evt ) )
+            return;
     // select whichever piece is underneath
     var iPieceSelected = -1;
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
@@ -424,6 +515,10 @@ World.prototype.onMouseLeftDown = function( evt ) {
 };
 // --------------------------------------
 World.prototype.onMouseLeftUp = function( evt ) {
+    // tell the buttons
+    for( var iButton = 0; iButton < this.buttons.length; ++iButton )
+        this.buttons[ iButton ].onMouseLeftUp( evt );
+    // tell the pieces
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
         var piece = this.pieces[ iPiece ];
         piece.isDragging = false;
@@ -441,7 +536,7 @@ World.prototype.onMouseLeftDrag = function( evt ) {
 {
     var canvas  = document.getElementById( 'myCanvas' );
     var context = canvas.getContext( '2d' );
-    var world   = new World();
+    var world   = new World( context );
     var mouseLeftDown = false;
     
     resizeCanvas();
