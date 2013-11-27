@@ -1,7 +1,8 @@
 <html>
 <title>Circle-Squaring</title>
 <head>
-<meta charset="UTF-8">
+<meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+<meta content="utf-8" http-equiv="encoding">
 <style>
 * { margin:0; padding:0; } /* to remove the top and left whitespace */
 html, body { width:100%; height:100%; } /* just to be sure these are full screen*/
@@ -165,11 +166,18 @@ Polygon.prototype.getTransformed = function( t ) {
 function Piece() {
     this.atOrigin = new Polygon();              // canonical polygon with centroid at the origin
     this.originToTarget = new Array();          // a Transform for each target
+    this.isSelected = false;
     this.hue = Math.random() * 360.0;
+    this.isGrabbed = false;
+    this.whichTargetGrabbed = -1;
+    this.whereGrabbed = null;
 };
 // --------------------------------------
 Piece.prototype.draw = function( ctx ) {
-    ctx.fillStyle = "hsla("+this.hue+",50%,50%,0.3)";
+    if( this.isSelected )
+        ctx.fillStyle = "hsla("+this.hue+",100%,50%,0.8)";
+    else
+        ctx.fillStyle = "hsla("+this.hue+",80%,50%,0.3)";
     for(var i = 0; i < this.originToTarget.length; ++i ) {
         ctx.save();
         ctx.translate( this.originToTarget[i].translate.x, this.originToTarget[i].translate.y );
@@ -185,10 +193,23 @@ Piece.prototype.getAsString = function() {
     for( var i = 0; i < this.originToTarget.length; ++i )
         spec += "," + this.originToTarget[i].getAsString();
     return spec;
-}
+};
 // --------------------------------------
 Piece.prototype.getPolygonOnTarget = function( iTarget ) {
     return this.atOrigin.getTransformed( this.originToTarget[ iTarget ] );
+};
+// --------------------------------------
+Piece.prototype.onMouseMove = function( evt ) {
+    this.isSelected = false;
+    var p = new Point2D( evt.clientX, evt.clientY );
+    for( var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget )
+    {
+        var polygonOnTarget = this.getPolygonOnTarget( iTarget );
+        if( polygonOnTarget.contains( p ) )
+        {
+            this.isSelected = true;
+        }
+    }
 };
 // ======================================
 // World class
@@ -298,13 +319,16 @@ World.prototype.getAsString = function() {
     return spec;
 };
 // --------------------------------------
+World.prototype.onMouseMove = function( evt ) {
+    // highlight whichever piece is underneath
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
+        this.pieces[ iPiece ].onMouseMove( evt );
+};
+// --------------------------------------
 World.prototype.onMouseLeftDown = function( evt ) {
 };
 // --------------------------------------
 World.prototype.onMouseLeftUp = function( evt ) {
-};
-// --------------------------------------
-World.prototype.onMouseMove = function( evt ) {
 };
 // --------------------------------------
 World.prototype.onMouseLeftDrag = function( evt ) {
