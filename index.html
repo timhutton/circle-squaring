@@ -14,17 +14,27 @@ canvas { display:block; } /* To remove the scrollbars */
 <script>
 // ======================================
 // utility functions
-function crossProduct2D( v, w ) {
-    return v.x*w.y - v.y*w.x;
-};
+function crossProduct2D( v, w ) { return v.x*w.y - v.y*w.x; }
 // --------------------------------------
-function add( a, b ) {
-    return new Point2D( a.x + b.x, a.y + b.y );
-};
+function add( a, b ) { return new Point2D( a.x + b.x, a.y + b.y ); }
 // --------------------------------------
-function sub( a, b ) {
-    return new Point2D( a.x - b.x, a.y - b.y );
-};
+function sub( a, b ) { return new Point2D( a.x - b.x, a.y - b.y ); }
+// --------------------------------------
+function sqr( x ) { return x * x }
+// --------------------------------------
+function dist2( v, w ) { return sqr(v.x - w.x) + sqr(v.y - w.y) }
+// --------------------------------------
+function distToSegmentSquared( p, v, w ) {
+  var l2 = dist2(v, w);
+  if (l2 == 0) return dist2(p, v);
+  var t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+  if (t < 0) return dist2(p, v);
+  if (t > 1) return dist2(p, w);
+  return dist2(p, { x: v.x + t * (w.x - v.x),
+                    y: v.y + t * (w.y - v.y) });
+}
+// --------------------------------------
+function distToSegment( p, v, w ) { return Math.sqrt(distToSegmentSquared(p, v, w)); }
 // --------------------------------------
 function lineSegmentsIntersect( p, p2, q, q2 ) {
     // two line segments: [p,p2] and [q,q2] - do they intersect?
@@ -201,6 +211,13 @@ Polygon.prototype.getTransformed = function( t ) {
         poly.points[ iPt ] = t.apply( this.points[ iPt ] );
     return poly;
 };
+// --------------------------------------
+Polygon.prototype.isPointNearEdge = function( p, tol ) {
+    for( var iPt = 0; iPt < this.points.length; ++iPt )
+        if( distToSegment( p, this.points[iPt], this.points[ (iPt+1)%this.points.length ] ) < tol )
+            return true;
+    return false;
+};
 // ======================================
 // Piece class
 function Piece() {
@@ -210,6 +227,8 @@ function Piece() {
     this.isSelected = false;
     this.isDragging = false;
     this.isDraggingVertex = false;
+    this.isRotating = false;
+    this.isVertexHighlighted = false;
     this.iActiveVertex = -1;
     this.whichTargetSelected = -1;
     this.draggingPoint = null;
@@ -218,6 +237,8 @@ function Piece() {
 // --------------------------------------
 Piece.prototype.draw = function( ctx ) {
     for(var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget ) {
+        ctx.strokeStyle = "rgb(0,0,0)";
+        ctx.lineWidth = 1;
         if( this.isSelected || this.isHighlighted )
             ctx.fillStyle = "hsla("+this.hue+",100%,50%,0.8)";
         else
@@ -234,14 +255,35 @@ Piece.prototype.draw = function( ctx ) {
             for( var iVert = 0; iVert < this.atOrigin.points.length; ++iVert ) {
                 ctx.beginPath();
                 ctx.arc( this.atOrigin.points[ iVert ].x, this.atOrigin.points[ iVert ].y, 5, 0, 2*Math.PI );
-                if( this.isDraggingVertex && this.iActiveVertex == iVert )
+                ctx.fill();
+                if( this.isVertexHighlighted && this.iActiveVertex == iVert )
                     ctx.stroke();
-                else
-                    ctx.fill();
                 ctx.closePath();
             }
         }
         ctx.restore();
+        if( this.isHighlighted && !this.isVertexHighlighted ) {
+            ctx.strokeStyle = "rgba(0,0,0,0.2)";
+            ctx.lineWidth = 5;
+            // if above a line segment then draw a broken circle to show that piece can be rotated like this
+            if( this.isSelected && this.isRotating ) {
+                ctx.beginPath();
+                ctx.arc( this.draggingPoint.x, this.draggingPoint.y, 10, 0, 1.8 * Math.PI );
+                ctx.stroke();
+                ctx.closePath();
+            }
+            else {
+                // draw a compass rose to show that piece can be moved like this
+                var roseWidth = 10;
+                ctx.beginPath();
+                ctx.moveTo( this.draggingPoint.x - roseWidth, this.draggingPoint.y )
+                ctx.lineTo( this.draggingPoint.x + roseWidth, this.draggingPoint.y )
+                ctx.moveTo( this.draggingPoint.x, this.draggingPoint.y - roseWidth )
+                ctx.lineTo( this.draggingPoint.x, this.draggingPoint.y + roseWidth )
+                ctx.stroke();
+                ctx.closePath();
+            }
+        }
     }
 };
 // --------------------------------------
@@ -258,23 +300,37 @@ Piece.prototype.getPolygonOnTarget = function( iTarget ) {
 // TODO: cache this, update when needed
 // --------------------------------------
 Piece.prototype.onMouseMove = function( evt ) {
+    var mousePos = new Point2D( evt.clientX, evt.clientY );
+    if( this.isSelected )
+    {
+        this.isVertexHighlighted = false;
+        var pAtOrigin = this.originToTarget[ this.whichTargetSelected ].applyInverse( mousePos );
+        for( var iVert = 0; iVert < this.atOrigin.points.length; ++iVert ) {
+            if( pAtOrigin.dist( this.atOrigin.points[ iVert ] ) < 5 ) {
+                this.isVertexHighlighted = true;
+                this.iActiveVertex = iVert;
+                return;
+            }
+        }
+    }
     this.isHighlighted = false;
-    var p = new Point2D( evt.clientX, evt.clientY );
     for( var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget )
     {
         var polygonOnTarget = this.getPolygonOnTarget( iTarget );
-        if( polygonOnTarget.contains( p ) )
+        if( polygonOnTarget.contains( mousePos ) )
         {
             this.isHighlighted = true;
+            this.draggingPoint = mousePos;
+            return;
         }
     }
 };
 // --------------------------------------
 Piece.prototype.onMouseLeftDown = function( evt ) {
     var mousePos = new Point2D( evt.clientX, evt.clientY );
-    // first check if picking up a vertex
     if( this.isSelected )
     {
+        // first check if picking up a vertex
         var pAtOrigin = this.originToTarget[ this.whichTargetSelected ].applyInverse( mousePos );
         for( var iVert = 0; iVert < this.atOrigin.points.length; ++iVert ) {
             if( pAtOrigin.dist( this.atOrigin.points[ iVert ] ) < 5 ) {
@@ -283,6 +339,12 @@ Piece.prototype.onMouseLeftDown = function( evt ) {
                 this.draggingPoint = pAtOrigin;
                 return true;
             }
+        }
+        // then check if picking up the piece to rotate it
+        if( this.atOrigin.isPointNearEdge( pAtOrigin, 5 ) ) {
+            this.isRotating = true;
+            this.draggingPoint = pAtOrigin;
+            return true;
         }
     }
     // check if picking up the piece
