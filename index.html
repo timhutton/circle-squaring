@@ -234,6 +234,10 @@ function Piece() {
     this.vertexRadius = 5;
 };
 // --------------------------------------
+Piece.prototype.isSelected = function() {
+    return this.state != PieceStateEnum.inactive && this.state != PieceStateEnum.highlighted;
+}
+// --------------------------------------
 Piece.prototype.draw = function( ctx ) {
     // draw the pieces on each target
     for(var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget ) 
@@ -249,7 +253,7 @@ Piece.prototype.draw = function( ctx ) {
         ctx.rotate( this.originToTarget[ iTarget ].rotate );
         this.atOrigin.drawPath( ctx );
         ctx.fill();
-        if( this.state != PieceStateEnum.inactive && this.state != PieceStateEnum.highlighted ) 
+        if( this.isSelected() ) 
         {
             ctx.stroke();
             // draw vertex handles
@@ -326,7 +330,7 @@ Piece.prototype.recenter = function() {
 Piece.prototype.onMouseMove = function( evt ) {
     var mousePos = new Point2D( evt.clientX, evt.clientY );
     // selected -> selected, translating, rotating or vertexDragging
-    if( this.state != PieceStateEnum.inactive && this.state != PieceStateEnum.highlighted )
+    if( this.isSelected() )
     {
         for( var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget ) 
         {
@@ -516,8 +520,10 @@ function World( ctx ) {
     
     this.buttons = new Array();
     
-    this.buttons[0] = new Button( "Grow piece", 50, 20, ctx );
-    this.buttons[1] = new Button( "Submit solution!", 170, 20, ctx );
+    this.deletePieceButton = this.buttons[0] = new Button( "Delete piece", 50, 20, ctx );
+    this.buttons[1] = new Button( "New piece", 143, 20, ctx );
+    this.buttons[1].isEnabled = true;
+    this.buttons[2] = new Button( "Grow piece", 230, 20, ctx );
 };
 // --------------------------------------
 World.prototype.draw = function( canvas ) {
@@ -530,8 +536,10 @@ World.prototype.draw = function( canvas ) {
     context.fillRect( 0, 0, canvas.width, canvas.height );
     context.closePath();
     
+    // update the buttons
+    this.deletePieceButton.isEnabled = this.isAnyPieceSelected();
+    
     // draw the buttons
-    this.buttons[1].isEnabled = isValidSolution;
     for( var iButton = 0; iButton < this.buttons.length; ++iButton )
         this.buttons[ iButton ].draw( context );
     
@@ -595,6 +603,33 @@ World.prototype.getAsString = function() {
     return spec;
 };
 // --------------------------------------
+World.prototype.addNewPiece = function() {
+    var p = this.pieces[ this.pieces.length ] = new Piece();
+    p.atOrigin.points[0] = new Point2D( -17, 50 );
+    p.atOrigin.points[1] = new Point2D( 70, 20 );
+    p.atOrigin.points[2] = new Point2D( 34, 10 );
+    p.atOrigin.points[3] = new Point2D( -10, -10 );
+    p.originToTarget[0] = new Transform( 0.7, new Point2D( this.circleCenter.x - 50.0, this.circleCenter.y - 50.0 ) );
+    p.originToTarget[1] = new Transform( 2.8, new Point2D( this.squareCenter.x + 50.0, this.squareCenter.y - 50.0 ) );
+    p.recenter();
+};
+// --------------------------------------
+World.prototype.deleteSelectedPiece = function() {
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
+        if( this.pieces[ iPiece ].isSelected() ) {
+            this.pieces.splice( iPiece, 1 );
+            return;
+        }
+    }
+}
+// --------------------------------------
+World.prototype.isAnyPieceSelected = function() {
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
+        if( this.pieces[ iPiece ].isSelected() )
+            return true;
+    return false;
+};
+// --------------------------------------
 World.prototype.onMouseMove = function( evt ) {
     // highlight whichever piece is underneath
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
@@ -603,27 +638,25 @@ World.prototype.onMouseMove = function( evt ) {
 // --------------------------------------
 World.prototype.onMouseLeftDown = function( evt ) {
     // was a button pressed?
-    for( var iButton = 0; iButton < this.buttons.length; ++iButton )
-        if( this.buttons[ iButton ].onMouseLeftDown( evt ) )
+    for( var iButton = 0; iButton < this.buttons.length; ++iButton ) {
+        if( this.buttons[ iButton ].onMouseLeftDown( evt ) ) {
+            this.doButtonAction( this.buttons[ iButton ].label );
             return;
-    // allow the pieces to see the event
-    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
-        if( this.pieces[ iPiece ].onMouseLeftDown( evt ) )
-            return;
-            
-    // select whichever piece is underneath
-    /*var iPieceSelected = -1;
+        }
+    }
+    // send the message to the pieces
+    var iPieceSelected = -1;
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
         if( this.pieces[ iPiece ].onMouseLeftDown( evt ) ) {
             iPieceSelected = iPiece;
             break; // we only allow one piece to accept the event
         }
-    }*/
-    // deselect the others
-    /*for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
+    }
+    // deselect everything other than the one that accepted the message
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
         if( iPiece != iPieceSelected )
-            this.pieces[ iPiece ].isSelected = false;
-    }*/
+            this.pieces[ iPiece ].state = PieceStateEnum.inactive;
+    }
 };
 // --------------------------------------
 World.prototype.onMouseLeftUp = function( evt ) {
@@ -635,6 +668,13 @@ World.prototype.onMouseLeftUp = function( evt ) {
 World.prototype.onMouseLeftDrag = function( evt ) {
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
         this.pieces[ iPiece ].onMouseLeftDrag( evt );
+};
+World.prototype.doButtonAction = function( label ) {
+    switch( label ) {
+        case "Delete piece": this.deleteSelectedPiece(); break;
+        case "New piece":    this.addNewPiece(); break;
+        case "Grow piece":   alert("Not yet implemented"); break;
+    }
 };
 // ======================================
 
