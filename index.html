@@ -80,6 +80,12 @@ Point2D.prototype.sub = function( p ) {
     return this;
 };
 // --------------------------------------
+Point2D.prototype.mul = function( f ) {
+    this.x *= f;
+    this.y *= f;
+    return this;
+};
+// --------------------------------------
 Point2D.prototype.div = function( f ) {
     this.x /= f;
     this.y /= f;
@@ -88,6 +94,10 @@ Point2D.prototype.div = function( f ) {
 // --------------------------------------
 Point2D.prototype.dist = function( p ) {
     return Math.sqrt( Math.pow( this.x - p.x, 2 ) + Math.pow( this.y - p.y, 2 ) );
+};
+// --------------------------------------
+Point2D.prototype.normalize = function() {
+    return this.div( Math.sqrt( this.x*this.x + this.y*this.y ) );
 };
 // --------------------------------------
 Point2D.prototype.getAsString = function() {
@@ -218,6 +228,19 @@ Polygon.prototype.isPointNearEdge = function( p, tol ) {
             return true;
     return false;
 };
+// --------------------------------------
+Polygon.prototype.getNormal = function( iPt ) {
+    // return average of two neighboring edge normals
+    var a = this.points[ (iPt+this.points.length-1)%this.points.length ];
+    var b = this.points[ iPt ];
+    var c = this.points[ (iPt+1)%this.points.length ];
+    var e1 = sub( b, a );
+    var en1 = new Point2D( -e1.y, e1.x ).normalize();
+    var e2 = sub( c, b );
+    var en2 = new Point2D( -e2.y, e2.x ).normalize();
+    var n = add( en1, en2 ).normalize();
+    return n;
+};
 // ======================================
 // Piece class
 // --------------------------------------
@@ -240,15 +263,15 @@ Piece.prototype.isSelected = function() {
 // --------------------------------------
 Piece.prototype.draw = function( ctx ) {
     // draw the pieces on each target
+    ctx.strokeStyle = "rgb(0,0,0)";
+    ctx.lineWidth = 1;
     for(var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget ) 
     {
-        ctx.strokeStyle = "rgb(0,0,0)";
-        ctx.lineWidth = 1;
+        ctx.save();
         if( this.state != PieceStateEnum.inactive )
             ctx.fillStyle = "hsla("+this.hue+",100%,50%,0.8)";
         else
             ctx.fillStyle = "hsla("+this.hue+",80%,50%,0.3)";
-        ctx.save();
         ctx.translate( this.originToTarget[ iTarget ].translate.x, this.originToTarget[ iTarget ].translate.y );
         ctx.rotate( this.originToTarget[ iTarget ].rotate );
         this.atOrigin.drawPath( ctx );
@@ -523,7 +546,7 @@ function World( ctx ) {
     this.deletePieceButton = this.buttons[0] = new Button( "Delete piece", 50, 20, ctx );
     this.buttons[1] = new Button( "New piece", 143, 20, ctx );
     this.buttons[1].isEnabled = true;
-    this.buttons[2] = new Button( "Grow piece", 230, 20, ctx );
+    this.growPieceButton = this.buttons[2] = new Button( "Grow piece", 230, 20, ctx );
 };
 // --------------------------------------
 World.prototype.draw = function( canvas ) {
@@ -538,6 +561,7 @@ World.prototype.draw = function( canvas ) {
     
     // update the buttons
     this.deletePieceButton.isEnabled = this.isAnyPieceSelected();
+    this.growPieceButton.isEnabled = this.isAnyPieceSelected();
     
     // draw the buttons
     for( var iButton = 0; iButton < this.buttons.length; ++iButton )
@@ -621,7 +645,30 @@ World.prototype.deleteSelectedPiece = function() {
             return;
         }
     }
-}
+};
+// --------------------------------------
+World.prototype.growSelectedPiece = function() {
+    var growStep = 1.0;
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) 
+    {
+        var piece = this.pieces[ iPiece ];
+        if( piece.isSelected() ) {
+            // iteratively move vertices outwards a little on their surface normal for as long as solution remains valid
+            do {
+                var movedSomething = false;
+                for( var iPt = 0; iPt < piece.atOrigin.points.length; ++iPt ) {
+                    var oldPos = new Point2D( piece.atOrigin.points[ iPt ].x, piece.atOrigin.points[ iPt ].y );
+                    var n = piece.atOrigin.getNormal( iPt ).mul( growStep );
+                    piece.atOrigin.points[ iPt ].add( n );
+                    if( this.isValidSolution() )
+                        movedSomething = true;
+                    else
+                        piece.atOrigin.points[ iPt ] = oldPos;
+                }
+            } while( movedSomething );
+        }
+    }
+};
 // --------------------------------------
 World.prototype.isAnyPieceSelected = function() {
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
@@ -631,7 +678,7 @@ World.prototype.isAnyPieceSelected = function() {
 };
 // --------------------------------------
 World.prototype.onMouseMove = function( evt ) {
-    // highlight whichever piece is underneath
+    // pass the message to the pieces
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
         this.pieces[ iPiece ].onMouseMove( evt );
 };
@@ -673,7 +720,8 @@ World.prototype.doButtonAction = function( label ) {
     switch( label ) {
         case "Delete piece": this.deleteSelectedPiece(); break;
         case "New piece":    this.addNewPiece(); break;
-        case "Grow piece":   alert("Not yet implemented"); break;
+        case "Grow piece":   this.growSelectedPiece(); break;
+        default: alert("Unknown button: "+label);
     }
 };
 // ======================================
