@@ -241,6 +241,16 @@ Polygon.prototype.getNormal = function( iPt ) {
     var n = add( en1, en2 ).normalize();
     return n;
 };
+// --------------------------------------
+Polygon.prototype.subdivide = function() {
+    var newPoints = new Array();
+    for( var iOldPt = 0; iOldPt < this.points.length; ++iOldPt )
+    {
+        newPoints.push( this.points[ iOldPt ] );
+        newPoints.push( add( this.points[ iOldPt ], this.points[ (iOldPt+1)%this.points.length ] ).div( 2.0 ) );
+    }
+    this.points = newPoints;
+};
 // ======================================
 // Piece class
 // --------------------------------------
@@ -547,6 +557,8 @@ function World( ctx ) {
     this.buttons[1] = new Button( "New piece", 143, 20, ctx );
     this.buttons[1].isEnabled = true;
     this.growPieceButton = this.buttons[2] = new Button( "Grow piece", 230, 20, ctx );
+    this.subdividePieceButton = this.buttons[3] = new Button( "Subdivide piece", 335, 20, ctx );
+    // TODO: have button return size, to allow auto-positioning
 };
 // --------------------------------------
 World.prototype.draw = function( canvas ) {
@@ -561,7 +573,8 @@ World.prototype.draw = function( canvas ) {
     
     // update the buttons
     this.deletePieceButton.isEnabled = this.isAnyPieceSelected();
-    this.growPieceButton.isEnabled = this.isAnyPieceSelected();
+    this.growPieceButton.isEnabled = this.isAnyPieceSelected() && isValidSolution;
+    this.subdividePieceButton.isEnabled = this.isAnyPieceSelected();
     
     // draw the buttons
     for( var iButton = 0; iButton < this.buttons.length; ++iButton )
@@ -602,6 +615,7 @@ World.prototype.isValidSolution = function() {
             for( var iPiece2 = 0; iPiece2 < iPiece; ++iPiece2 ) 
                 if( polysOnTarget[ iPiece ].getPolygonRelationWith( polysOnTarget[ iPiece2 ] ) != PolygonRelationEnum.disjoint ) 
                     return false;
+            // TODO: invalid if any piece self-intersects
         }
     }
     return true;
@@ -639,12 +653,9 @@ World.prototype.addNewPiece = function() {
 };
 // --------------------------------------
 World.prototype.deleteSelectedPiece = function() {
-    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
-        if( this.pieces[ iPiece ].isSelected() ) {
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
+        if( this.pieces[ iPiece ].isSelected() )
             this.pieces.splice( iPiece, 1 );
-            return;
-        }
-    }
 };
 // --------------------------------------
 World.prototype.growSelectedPiece = function() {
@@ -660,7 +671,7 @@ World.prototype.growSelectedPiece = function() {
                     var oldPos = new Point2D( piece.atOrigin.points[ iPt ].x, piece.atOrigin.points[ iPt ].y );
                     var n = piece.atOrigin.getNormal( iPt ).mul( growStep );
                     piece.atOrigin.points[ iPt ].add( n );
-                    if( this.isValidSolution() )
+                    if( this.isValidSolution() ) // TODO: faster to just check this point against self-intersection, other pieces and targets
                         movedSomething = true;
                     else
                         piece.atOrigin.points[ iPt ] = oldPos;
@@ -668,6 +679,13 @@ World.prototype.growSelectedPiece = function() {
             } while( movedSomething );
         }
     }
+};
+// --------------------------------------
+World.prototype.subdivideSelectedPiece = function() {
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
+        if( this.pieces[ iPiece ].isSelected() )
+            this.pieces[ iPiece ].atOrigin.subdivide();
+    // TODO: only want to subdivide up to a certain point proximity
 };
 // --------------------------------------
 World.prototype.isAnyPieceSelected = function() {
@@ -718,9 +736,10 @@ World.prototype.onMouseLeftDrag = function( evt ) {
 };
 World.prototype.doButtonAction = function( label ) {
     switch( label ) {
-        case "Delete piece": this.deleteSelectedPiece(); break;
-        case "New piece":    this.addNewPiece(); break;
-        case "Grow piece":   this.growSelectedPiece(); break;
+        case "Delete piece":        this.deleteSelectedPiece(); break;
+        case "New piece":           this.addNewPiece(); break;
+        case "Grow piece":          this.growSelectedPiece(); break;
+        case "Subdivide piece":     this.subdivideSelectedPiece(); break;
         default: alert("Unknown button: "+label);
     }
 };
