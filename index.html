@@ -220,26 +220,27 @@ Polygon.prototype.isPointNearEdge = function( p, tol ) {
 };
 // ======================================
 // Piece class
+// --------------------------------------
+var PieceStateEnum = Object.freeze ({ inactive: {}, highlighted: {}, selected: {}, translating: {}, vertexDragging: {}, rotating: {} });
+// --------------------------------------
 function Piece() {
     this.atOrigin = new Polygon();              // canonical polygon with centroid at the origin
     this.originToTarget = new Array();          // a Transform for each target
-    this.isHighlighted = false;
-    this.isSelected = false;
-    this.isDragging = false;
-    this.isDraggingVertex = false;
-    this.isRotating = false;
-    this.isVertexHighlighted = false;
+    this.state = PieceStateEnum.inactive;
     this.iActiveVertex = -1;
     this.whichTargetSelected = -1;
     this.draggingPoint = null;
     this.hue = Math.random() * 360.0;
+    this.vertexRadius = 5;
 };
 // --------------------------------------
 Piece.prototype.draw = function( ctx ) {
-    for(var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget ) {
+    // draw the pieces on each target
+    for(var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget ) 
+    {
         ctx.strokeStyle = "rgb(0,0,0)";
         ctx.lineWidth = 1;
-        if( this.isSelected || this.isHighlighted )
+        if( this.state != PieceStateEnum.inactive )
             ctx.fillStyle = "hsla("+this.hue+",100%,50%,0.8)";
         else
             ctx.fillStyle = "hsla("+this.hue+",80%,50%,0.3)";
@@ -248,42 +249,58 @@ Piece.prototype.draw = function( ctx ) {
         ctx.rotate( this.originToTarget[ iTarget ].rotate );
         this.atOrigin.drawPath( ctx );
         ctx.fill();
-        if( this.isSelected && ( this.whichTargetSelected == iTarget ) ) {
+        if( this.state != PieceStateEnum.inactive && this.state != PieceStateEnum.highlighted ) 
+        {
             ctx.stroke();
             // draw vertex handles
             ctx.fillStyle = "rgba(0,0,0,0.4)";
             for( var iVert = 0; iVert < this.atOrigin.points.length; ++iVert ) {
                 ctx.beginPath();
-                ctx.arc( this.atOrigin.points[ iVert ].x, this.atOrigin.points[ iVert ].y, 5, 0, 2*Math.PI );
+                ctx.arc( this.atOrigin.points[ iVert ].x, this.atOrigin.points[ iVert ].y, this.vertexRadius, 0, 2*Math.PI );
                 ctx.fill();
-                if( this.isVertexHighlighted && this.iActiveVertex == iVert )
+                if( this.state == PieceStateEnum.vertexDragging && this.iActiveVertex == iVert )
                     ctx.stroke();
                 ctx.closePath();
             }
         }
         ctx.restore();
-        if( this.isHighlighted && !this.isVertexHighlighted ) {
-            ctx.strokeStyle = "rgba(0,0,0,0.2)";
-            ctx.lineWidth = 5;
-            // if above a line segment then draw a broken circle to show that piece can be rotated like this
-            if( this.isSelected && this.isRotating ) {
-                ctx.beginPath();
-                ctx.arc( this.draggingPoint.x, this.draggingPoint.y, 10, 0, 1.8 * Math.PI );
-                ctx.stroke();
-                ctx.closePath();
-            }
-            else {
-                // draw a compass rose to show that piece can be moved like this
-                var roseWidth = 10;
-                ctx.beginPath();
-                ctx.moveTo( this.draggingPoint.x - roseWidth, this.draggingPoint.y )
-                ctx.lineTo( this.draggingPoint.x + roseWidth, this.draggingPoint.y )
-                ctx.moveTo( this.draggingPoint.x, this.draggingPoint.y - roseWidth )
-                ctx.lineTo( this.draggingPoint.x, this.draggingPoint.y + roseWidth )
-                ctx.stroke();
-                ctx.closePath();
-            }
-        }
+    }
+    // draw the cursor
+    if( this.state == PieceStateEnum.rotating ) {
+        // draw a broken circle to show that piece can be rotated like this
+        ctx.strokeStyle = "rgba(0,0,0,0.2)";
+        ctx.lineWidth = this.vertexRadius;
+        var arcRadius = this.vertexRadius*2;
+        ctx.beginPath();
+        var pOnTarget = this.originToTarget[ this.whichTargetSelected ].apply( this.draggingPoint );
+        ctx.arc( pOnTarget.x, pOnTarget.y, arcRadius, 0, 1.8 * Math.PI );
+        ctx.stroke();
+        ctx.closePath();
+        // also draw the center of rotation
+        var center = this.originToTarget[ this.whichTargetSelected ].apply( new Point2D( 0, 0 ) );
+        ctx.strokeStyle = "rgba(0,0,0,1)";
+        ctx.lineWidth = 1;
+        var crossWidth = this.vertexRadius/2;
+        ctx.beginPath();
+        ctx.moveTo( center.x - crossWidth, center.y )
+        ctx.lineTo( center.x + crossWidth, center.y )
+        ctx.moveTo( center.x, center.y - crossWidth )
+        ctx.lineTo( center.x, center.y + crossWidth )
+        ctx.stroke();
+        ctx.closePath();
+    }
+    else if( this.state == PieceStateEnum.translating ) {
+        // draw a cross to show that piece can be moved like this
+        ctx.strokeStyle = "rgba(0,0,0,0.2)";
+        ctx.lineWidth = this.vertexRadius;
+        var crossWidth = this.vertexRadius*2;
+        ctx.beginPath();
+        ctx.moveTo( this.draggingPoint.x - crossWidth, this.draggingPoint.y )
+        ctx.lineTo( this.draggingPoint.x + crossWidth, this.draggingPoint.y )
+        ctx.moveTo( this.draggingPoint.x, this.draggingPoint.y - crossWidth )
+        ctx.lineTo( this.draggingPoint.x, this.draggingPoint.y + crossWidth )
+        ctx.stroke();
+        ctx.closePath();
     }
 };
 // --------------------------------------
@@ -295,85 +312,111 @@ Piece.prototype.getAsString = function() {
 };
 // --------------------------------------
 Piece.prototype.getPolygonOnTarget = function( iTarget ) {
-    return this.atOrigin.getTransformed( this.originToTarget[ iTarget ] );
+    return this.atOrigin.getTransformed( this.originToTarget[ iTarget ] ); // TODO: cache this, only update when needed
 };
-// TODO: cache this, update when needed
+// --------------------------------------
+Piece.prototype.recenter = function() {
+    var center = this.atOrigin.getCentroid();
+    for( var iPt = 0; iPt < this.atOrigin.points.length; ++iPt )
+        this.atOrigin.points[ iPt ].sub( center );
+    for( var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget )
+        this.originToTarget[ iTarget ].translate = this.originToTarget[ iTarget ].apply( center );
+};
 // --------------------------------------
 Piece.prototype.onMouseMove = function( evt ) {
     var mousePos = new Point2D( evt.clientX, evt.clientY );
-    if( this.isSelected )
+    // selected -> selected, translating, rotating or vertexDragging
+    if( this.state != PieceStateEnum.inactive && this.state != PieceStateEnum.highlighted )
     {
-        this.isVertexHighlighted = false;
-        var pAtOrigin = this.originToTarget[ this.whichTargetSelected ].applyInverse( mousePos );
-        for( var iVert = 0; iVert < this.atOrigin.points.length; ++iVert ) {
-            if( pAtOrigin.dist( this.atOrigin.points[ iVert ] ) < 5 ) {
-                this.isVertexHighlighted = true;
-                this.iActiveVertex = iVert;
+        for( var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget ) 
+        {
+            var pAtOrigin = this.originToTarget[ iTarget ].applyInverse( mousePos );
+        
+            // in position for vertex dragging?
+            for( var iVert = 0; iVert < this.atOrigin.points.length; ++iVert ) {
+                if( pAtOrigin.dist( this.atOrigin.points[ iVert ] ) < this.vertexRadius ) {
+                    this.state = PieceStateEnum.vertexDragging;
+                    this.iActiveVertex = iVert;
+                    this.draggingPoint = pAtOrigin;
+                    this.whichTargetSelected = iTarget;
+                    return;
+                }
+            }
+            // in position for rotating the piece?
+            if( this.atOrigin.isPointNearEdge( pAtOrigin, this.vertexRadius ) ) {
+                this.state = PieceStateEnum.rotating;
+                this.draggingPoint = pAtOrigin;
+                this.whichTargetSelected = iTarget;
+                return;
+            }
+            // in position for translating the piece?
+            if( this.atOrigin.contains( pAtOrigin ) ) {
+                this.state = PieceStateEnum.translating;
+                this.draggingPoint = mousePos;
+                this.whichTargetSelected = iTarget;
                 return;
             }
         }
+        this.state = PieceStateEnum.selected;
+        this.whichTargetSelected = -1;
+        return;
     }
-    this.isHighlighted = false;
+    // inactive or highlighted
     for( var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget )
     {
-        var polygonOnTarget = this.getPolygonOnTarget( iTarget );
-        if( polygonOnTarget.contains( mousePos ) )
+        var pAtOrigin = this.originToTarget[ iTarget ].applyInverse( mousePos );
+        if( this.atOrigin.contains( pAtOrigin ) )
         {
-            this.isHighlighted = true;
-            this.draggingPoint = mousePos;
+            this.state = PieceStateEnum.highlighted;
+            this.whichTargetSelected = iTarget;
             return;
         }
     }
+    this.state = PieceStateEnum.inactive;
+    this.whichTargetSelected = -1;
 };
 // --------------------------------------
 Piece.prototype.onMouseLeftDown = function( evt ) {
-    var mousePos = new Point2D( evt.clientX, evt.clientY );
-    if( this.isSelected )
+    switch( this.state )
     {
-        // first check if picking up a vertex
-        var pAtOrigin = this.originToTarget[ this.whichTargetSelected ].applyInverse( mousePos );
-        for( var iVert = 0; iVert < this.atOrigin.points.length; ++iVert ) {
-            if( pAtOrigin.dist( this.atOrigin.points[ iVert ] ) < 5 ) {
-                this.isDraggingVertex = true;
-                this.iActiveVertex = iVert;
-                this.draggingPoint = pAtOrigin;
-                return true;
-            }
-        }
-        // then check if picking up the piece to rotate it
-        if( this.atOrigin.isPointNearEdge( pAtOrigin, 5 ) ) {
-            this.isRotating = true;
-            this.draggingPoint = pAtOrigin;
-            return true;
-        }
+        case PieceStateEnum.selected:
+            this.state = PieceStateEnum.inactive;
+            return false;
+            
+        case PieceStateEnum.highlighted:
+            this.state = PieceStateEnum.selected;
+            this.onMouseMove( evt ); // update the piece's state based on the mouse position
+            return true; // no other piece should get this mouse click
+            
+        case PieceStateEnum.inactive:
+            return false;
+            
+        default:
+            return true; // translating/rotating/vertexDraggging is happening, no other piece should get this mouse click
     }
-    // check if picking up the piece
-    for( var iTarget = 0; iTarget < this.originToTarget.length; ++iTarget )
-    {
-        var polygonOnTarget = this.getPolygonOnTarget( iTarget );
-        if( polygonOnTarget.contains( mousePos ) )
-        {
-            this.isSelected = true;
-            this.isDragging = true;
-            this.draggingPoint = mousePos;
-            this.whichTargetSelected = iTarget;
-            return true;
-        }
-    }
-    return false;
 };
 // --------------------------------------
 Piece.prototype.onMouseLeftDrag = function( evt ) {
-    if( this.isDraggingVertex ) {
-        var mousePos = new Point2D( evt.clientX, evt.clientY );
-        var pAtOrigin = this.originToTarget[ this.whichTargetSelected].applyInverse( mousePos );
-        this.atOrigin.points[ this.iActiveVertex ].add( sub( pAtOrigin, this.draggingPoint ) );
-        this.draggingPoint = pAtOrigin;
-    }
-    else if( this.isDragging ) {
-        var mousePos = new Point2D( evt.clientX, evt.clientY );
-        this.originToTarget[ this.whichTargetSelected ].translate.add( sub( mousePos, this.draggingPoint ) );
-        this.draggingPoint = mousePos;
+    var mousePos = new Point2D( evt.clientX, evt.clientY );
+    switch( this.state ) 
+    {
+        case PieceStateEnum.vertexDragging:
+            var pAtOrigin = this.originToTarget[ this.whichTargetSelected ].applyInverse( mousePos );
+            this.atOrigin.points[ this.iActiveVertex ].add( sub( pAtOrigin, this.draggingPoint ) );
+            this.recenter();
+            this.draggingPoint = this.originToTarget[ this.whichTargetSelected ].applyInverse( mousePos ); // need to recompute because transform has changed
+            break;
+            
+        case PieceStateEnum.translating:
+            this.originToTarget[ this.whichTargetSelected ].translate.add( sub( mousePos, this.draggingPoint ) );
+            this.draggingPoint = mousePos;
+            break;
+            
+        case PieceStateEnum.rotating:
+            var pAtOrigin = this.originToTarget[ this.whichTargetSelected].applyInverse( mousePos );
+            this.originToTarget[ this.whichTargetSelected ].rotate += Math.atan2( pAtOrigin.y, pAtOrigin.x ) - Math.atan2( this.draggingPoint.y, this.draggingPoint.x );
+            this.draggingPoint = this.originToTarget[ this.whichTargetSelected].applyInverse( mousePos ); // need to recompute because transform has changed
+            break;
     }
 };
 // ======================================
@@ -460,6 +503,7 @@ function World( ctx ) {
     test.atOrigin.points[2] = new Point2D( 7, 20 );
     test.originToTarget[0] = new Transform( 0.3, this.circleCenter );
     test.originToTarget[1] = new Transform( 0.6, this.squareCenter );
+    test.recenter();
     
     var test2 = this.pieces[1] = new Piece();
     test2.atOrigin.points[0] = new Point2D( -17, 50 );
@@ -468,6 +512,7 @@ function World( ctx ) {
     test2.atOrigin.points[3] = new Point2D( -10, -10 );
     test2.originToTarget[0] = new Transform( 0.7, new Point2D( this.circleCenter.x - 50.0, this.circleCenter.y - 50.0 ) );
     test2.originToTarget[1] = new Transform( 2.8, new Point2D( this.squareCenter.x + 50.0, this.squareCenter.y - 50.0 ) );
+    test2.recenter();
     
     this.buttons = new Array();
     
@@ -561,31 +606,30 @@ World.prototype.onMouseLeftDown = function( evt ) {
     for( var iButton = 0; iButton < this.buttons.length; ++iButton )
         if( this.buttons[ iButton ].onMouseLeftDown( evt ) )
             return;
+    // allow the pieces to see the event
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
+        if( this.pieces[ iPiece ].onMouseLeftDown( evt ) )
+            return;
+            
     // select whichever piece is underneath
-    var iPieceSelected = -1;
+    /*var iPieceSelected = -1;
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
         if( this.pieces[ iPiece ].onMouseLeftDown( evt ) ) {
             iPieceSelected = iPiece;
             break; // we only allow one piece to accept the event
         }
-    }
+    }*/
     // deselect the others
-    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
+    /*for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
         if( iPiece != iPieceSelected )
             this.pieces[ iPiece ].isSelected = false;
-    }
+    }*/
 };
 // --------------------------------------
 World.prototype.onMouseLeftUp = function( evt ) {
     // tell the buttons
     for( var iButton = 0; iButton < this.buttons.length; ++iButton )
         this.buttons[ iButton ].onMouseLeftUp( evt );
-    // tell the pieces
-    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
-        var piece = this.pieces[ iPiece ];
-        piece.isDragging = false;
-        piece.isDraggingVertex = false;
-    }
 };
 // --------------------------------------
 World.prototype.onMouseLeftDrag = function( evt ) {
