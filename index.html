@@ -251,6 +251,29 @@ Polygon.prototype.subdivide = function() {
     }
     this.points = newPoints;
 };
+// --------------------------------------
+Polygon.prototype.isSelfIntersecting = function() {
+    // does any line segment cross any other?
+    for( var iPt = 0; iPt < this.points.length; ++iPt )
+    {
+        var iP1 = iPt;
+        var iP2 = (iPt+1)%this.points.length;
+        var p1 = this.points[ iP1 ];
+        var p2 = this.points[ iP2 ];
+        for( var iPt2 = 0; iPt2 < iPt-1; ++iPt2 )
+        {
+            var iQ1 = iPt2;
+            var iQ2 = (iPt2+1)%this.points.length;
+            if( iQ1 == iP2 || iQ2 == iP1 )
+                continue; // neighboring edges, ignore
+            var q1 = this.points[ iQ1 ];
+            var q2 = this.points[ iQ2 ];
+            if( lineSegmentsIntersect( p1, p2, q1, q2 ) )
+                return true;
+        }
+    }
+    return false;
+};
 // ======================================
 // Piece class
 // --------------------------------------
@@ -604,6 +627,14 @@ World.prototype.draw = function( canvas ) {
 // --------------------------------------
 World.prototype.isValidSolution = function() {
     var polysOnTarget = new Array();
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
+        // polygon must not be self-intersecting
+        if( this.pieces[ iPiece ].atOrigin.isSelfIntersecting() )
+            return false;
+        // polygon must be clockwise (positive area)
+        if( this.pieces[ iPiece ].atOrigin.getArea() <= 0 )
+            return false;
+    }
     for( var iTarget = 0; iTarget < this.targets.length; ++iTarget ) {
         for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
             // transform each piece onto this target
@@ -615,7 +646,6 @@ World.prototype.isValidSolution = function() {
             for( var iPiece2 = 0; iPiece2 < iPiece; ++iPiece2 ) 
                 if( polysOnTarget[ iPiece ].getPolygonRelationWith( polysOnTarget[ iPiece2 ] ) != PolygonRelationEnum.disjoint ) 
                     return false;
-            // TODO: invalid if any piece self-intersects
         }
     }
     return true;
@@ -665,7 +695,7 @@ World.prototype.growSelectedPiece = function() {
         var piece = this.pieces[ iPiece ];
         if( piece.isSelected() ) {
             // iteratively move vertices outwards a little on their surface normal for as long as solution remains valid
-            do {
+            //do {
                 var movedSomething = false;
                 for( var iPt = 0; iPt < piece.atOrigin.points.length; ++iPt ) {
                     var oldPos = new Point2D( piece.atOrigin.points[ iPt ].x, piece.atOrigin.points[ iPt ].y );
@@ -676,7 +706,7 @@ World.prototype.growSelectedPiece = function() {
                     else
                         piece.atOrigin.points[ iPt ] = oldPos;
                 }
-            } while( movedSomething );
+            //} while( movedSomething );
         }
     }
 };
