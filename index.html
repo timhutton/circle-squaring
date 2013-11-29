@@ -99,10 +99,6 @@ Point2D.prototype.dist = function( p ) {
 Point2D.prototype.normalize = function() {
     return this.div( Math.sqrt( this.x*this.x + this.y*this.y ) );
 };
-// --------------------------------------
-Point2D.prototype.getAsString = function() {
-    return this.x + "," + this.y;
-};
 // ======================================
 // Transform class
 function Transform( r, p ) {
@@ -118,10 +114,6 @@ Transform.prototype.apply = function( p ) {
 Transform.prototype.applyInverse = function( p ) {
     return new Point2D( ( p.x - this.translate.x ) * Math.cos( -this.rotate ) - ( p.y - this.translate.y ) * Math.sin( -this.rotate ), 
                         ( p.x - this.translate.x ) * Math.sin( -this.rotate ) + ( p.y - this.translate.y ) * Math.cos( -this.rotate ) );
-};
-// --------------------------------------
-Transform.prototype.getAsString = function() {
-    return this.rotate + "," + this.translate.getAsString();
 };
 // ======================================
 // Polygon class
@@ -186,13 +178,6 @@ Polygon.prototype.contains = function( p ) {
     return c;
 };
 // --------------------------------------
-Polygon.prototype.getAsString = function() {
-    var spec = this.points.length;
-    for( var i = 0; i < this.points.length; ++i )
-        spec += "," + this.points[i].getAsString();
-    return spec;
-};
-// --------------------------------------
 var PolygonRelationEnum = Object.freeze ({ disjoint: {}, contained: {}, containing: {}, intersecting: {} });
 // --------------------------------------
 Polygon.prototype.getPolygonRelationWith = function( poly ) {
@@ -251,6 +236,20 @@ Polygon.prototype.subdivide = function( minEdgeLength ) {
             newPoints.push( add( this.points[ iOldPt ], this.points[ (iOldPt+1)%this.points.length ] ).div( 2.0 ) );
     }
     this.points = newPoints;
+};
+// --------------------------------------
+Polygon.prototype.removeVerticesCloserThan = function( minEdgeLength ) {
+    do {
+        var removedOne = false;
+        for( var iPt = 0; iPt < this.points.length; ++iPt )
+        {
+            if( this.points[ iPt ].dist( this.points[ (iPt+1)%this.points.length ] ) < minEdgeLength ) {
+                this.points.splice( iPt, 1 );
+                removedOne = true;
+                break;
+            }
+        }
+    } while( removedOne );
 };
 // --------------------------------------
 Polygon.prototype.isSelfIntersecting = function() {
@@ -363,13 +362,6 @@ Piece.prototype.draw = function( ctx ) {
         ctx.stroke();
         ctx.closePath();
     }
-};
-// --------------------------------------
-Piece.prototype.getAsString = function() {
-    var spec = this.atOrigin.getAsString() + "," + this.originToTarget.length + "," + this.hue;
-    for( var i = 0; i < this.originToTarget.length; ++i )
-        spec += "," + this.originToTarget[i].getAsString();
-    return spec;
 };
 // --------------------------------------
 Piece.prototype.getPolygonOnTarget = function( iTarget ) {
@@ -541,6 +533,8 @@ Button.prototype.onMouseLeftUp = function( evt ) {
 // ======================================
 // World class
 function World( ctx ) {
+    this.isAutoEnabled = true;
+
     this.circleCenter = new Point2D( 250, 350 );
     this.circleRadius = 200.0;
     
@@ -578,11 +572,9 @@ function World( ctx ) {
     this.buttons = new Array();
     
     this.deletePieceButton = this.buttons[0] = new Button( "Delete piece", 50, 20, ctx );
-    this.buttons[1] = new Button( "New piece", 143, 20, ctx );
-    this.buttons[1].isEnabled = true;
-    this.adaptPiecesButton = this.buttons[2] = new Button( "Adapt pieces", 235, 20, ctx );
-    this.adaptPiecesButton.isEnabled = true;
-    this.subdividePieceButton = this.buttons[3] = new Button( "Subdivide piece", 345, 20, ctx );
+    this.newPieceButton = this.buttons[1] = new Button( "New piece", 143, 20, ctx );
+    this.automaticToggleButton = this.buttons[2] = new Button("Go manual", 235, 20, ctx );
+    this.automaticToggleButton.isEnabled = true;
     // TODO: have button return size, to allow auto-positioning
 };
 // --------------------------------------
@@ -598,7 +590,7 @@ World.prototype.draw = function( canvas ) {
     
     // update the buttons
     this.deletePieceButton.isEnabled = this.isAnyPieceSelected();
-    this.subdividePieceButton.isEnabled = this.isAnyPieceSelected();
+    this.newPieceButton.isEnabled = !this.isAutoEnabled;
     
     // draw the buttons
     for( var iButton = 0; iButton < this.buttons.length; ++iButton )
@@ -618,10 +610,10 @@ World.prototype.draw = function( canvas ) {
     // DEBUG: show some information
     context.fillStyle = "rgb(0,0,0)";
     context.font="12px Arial";
-    context.fillText( this.getAsString(), 10, 70 );
-    context.fillText( this.pieces.length + " : " + this.getAreaCovered()*100 + "%", 10, 100 );
+    var percentageCoverage = this.getAreaCovered()*100;
+    context.fillText( 'N = ' + this.pieces.length + " : " + percentageCoverage.toFixed(2) + "% coverage", 10, 100 );
     if( isValidSolution )
-        context.fillText( "valid solution", 10, 130 );
+        context.fillText( "valid solution (no overlapping)", 10, 130 );
     else
         context.fillText( "overlapping detected!", 10, 130 );
 };
@@ -660,20 +652,8 @@ World.prototype.getAreaCovered = function() {
     return area / ( Math.PI * this.circleRadius * this.circleRadius );
 };
 // --------------------------------------
-World.prototype.getAsString = function() {
-    // targets:
-    var spec = this.targets.length + "," + this.circleCenter.getAsString() + "," + this.circleRadius + ","
-                + this.squareCenter.getAsString() + "," + this.squareRadius;
-                
-    // pieces:
-    spec += "," + this.pieces.length;
-    for( var i = 0; i < this.pieces.length; ++i )
-        spec += "," + this.pieces[i].getAsString();
-    return spec;
-};
-// --------------------------------------
 World.prototype.addNewPiece = function() {
-    var p = this.pieces[ this.pieces.length ] = new Piece();
+    var p = new Piece();
     p.atOrigin.points[0] = new Point2D( -17, 50 );
     p.atOrigin.points[1] = new Point2D( 70, 20 );
     p.atOrigin.points[2] = new Point2D( 34, 10 );
@@ -681,6 +661,7 @@ World.prototype.addNewPiece = function() {
     p.originToTarget[0] = new Transform( 0.7, new Point2D( this.circleCenter.x - 50.0, this.circleCenter.y - 50.0 ) );
     p.originToTarget[1] = new Transform( 2.8, new Point2D( this.squareCenter.x + 50.0, this.squareCenter.y - 50.0 ) );
     p.recenter();
+    this.pieces.unshift( p ); // add to start of list, so appears on top
 };
 // --------------------------------------
 World.prototype.deleteSelectedPiece = function() {
@@ -689,22 +670,114 @@ World.prototype.deleteSelectedPiece = function() {
             this.pieces.splice( iPiece, 1 );
 };
 // --------------------------------------
+World.prototype.clipPiecesAgainstTargets = function() {
+    for( var iPiece = this.pieces.length-1; iPiece >=0; --iPiece ) 
+    {
+        var piece = this.pieces[ iPiece ];
+        var pieceDeleted = false;
+        for( var iTarget = 0; iTarget < piece.originToTarget.length; ++iTarget ) 
+        {
+            var polygonOnTarget = piece.getPolygonOnTarget( iTarget );
+            for( iPt = polygonOnTarget.points.length-1; iPt >= 0; --iPt ) 
+            {
+                if( !this.targets[ iTarget ].contains( polygonOnTarget.points[ iPt ] ) )
+                {
+                    piece.atOrigin.points.splice( iPt, 1 );
+                    if( piece.atOrigin.points.length < 3 )
+                    {
+                        this.pieces.splice( iPiece, 1 );
+                        pieceDeleted = true;
+                        break;
+                    }
+                }
+            }
+            if( pieceDeleted )
+                break;
+        }
+    }
+};
+// --------------------------------------
+World.prototype.clipPiecesAgainstOthers = function() {
+    for( var iPiece = this.pieces.length-1; iPiece >=0; --iPiece ) 
+    {
+        var piece = this.pieces[ iPiece ];
+        var pieceDeleted = false;
+        for( var iTarget = 0; iTarget < this.targets.length; ++iTarget )
+        {
+            var polygonOnTarget = piece.getPolygonOnTarget( iTarget );
+            for( var iOtherPiece = 0; iOtherPiece < this.pieces.length; ++iOtherPiece ) 
+            {
+                if( iOtherPiece == iPiece )
+                    continue;
+                var otherPolygonOnTarget = this.pieces[ iOtherPiece ].getPolygonOnTarget( iTarget );
+                for( iPt = polygonOnTarget.points.length-1; iPt >= 0; --iPt ) 
+                {
+                    if( otherPolygonOnTarget.contains( polygonOnTarget.points[ iPt ] ) )
+                    {
+                        piece.atOrigin.points.splice( iPt, 1 );
+                        if( piece.atOrigin.points.length < 3 )
+                        {
+                            this.pieces.splice( iPiece, 1 );
+                            pieceDeleted = true;
+                            break;
+                        }
+                    }
+                }
+                if( pieceDeleted )
+                    break;
+            }
+            if( pieceDeleted )
+                break;
+        }
+    }
+};
+// --------------------------------------
 World.prototype.adaptPieces = function() {
+    this.clipPiecesAgainstTargets();
+    this.clipPiecesAgainstOthers();
     var growStep = 1.0;
     // move vertices outwards a little on their surface normal for as long as solution remains valid
-    var movedSomething = false;
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) 
     {
         var piece = this.pieces[ iPiece ];
-        for( var iPt = 0; iPt < piece.atOrigin.points.length; ++iPt ) {
+        piece.atOrigin.subdivide( 30 );
+        piece.atOrigin.removeVerticesCloserThan( 10 );
+        for( var iPt = 0; iPt < piece.atOrigin.points.length; ++iPt ) 
+        {
             var oldPos = new Point2D( piece.atOrigin.points[ iPt ].x, piece.atOrigin.points[ iPt ].y );
             var n = piece.atOrigin.getNormal( iPt ).mul( growStep );
             piece.atOrigin.points[ iPt ].add( n );
-            if( this.isValidSolution() ) // TODO: faster to just check this point against self-intersection, other pieces and targets
-                movedSomething = true;
-            else
+            var newPosIsOK = true;
+            // revert if self-intersects
+            if( piece.atOrigin.isSelfIntersecting() )
+                newPosIsOK = false;
+            if( newPosIsOK )
+            {
+                for( var iTarget = 0; iTarget < piece.originToTarget.length; ++iTarget ) {
+                    var pOnTarget = piece.originToTarget[ iTarget ].apply( piece.atOrigin.points[ iPt ] );
+                    // check whether the point is still inside the target shape
+                    if( !this.targets[ iTarget ].contains( pOnTarget ) ) {
+                        newPosIsOK = false;
+                        break;
+                    }
+                    // check whether the point is inside any other shape
+                    for( var iOtherPiece = 0; iOtherPiece < this.pieces.length; ++iOtherPiece ) {
+                        if( iOtherPiece == iPiece )
+                            continue;
+                        var otherPolygonOnTarget = this.pieces[ iOtherPiece ].getPolygonOnTarget( iTarget );
+                        if( otherPolygonOnTarget.contains( pOnTarget ) ) {
+                            newPosIsOK = false;
+                            break;
+                        }
+                    }
+                    if( !newPosIsOK )
+                        break;
+                }            
+            }
+            if( !newPosIsOK )
                 piece.atOrigin.points[ iPt ] = oldPos;
         }
+        piece.recenter();
     }
 };
 // --------------------------------------
@@ -764,8 +837,8 @@ World.prototype.doButtonAction = function( label ) {
     switch( label ) {
         case "Delete piece":        this.deleteSelectedPiece(); break;
         case "New piece":           this.addNewPiece(); break;
-        case "Adapt pieces":        this.adaptPieces(); break;
-        case "Subdivide piece":     this.subdivideSelectedPiece(); break;
+        case "Go auto":             this.isAutoEnabled = true; this.automaticToggleButton.label = "Go manual"; break;
+        case "Go manual":           this.isAutoEnabled = false; this.automaticToggleButton.label = "Go auto"; break;
         default: alert("Unknown button: "+label);
     }
 };
@@ -822,7 +895,29 @@ World.prototype.doButtonAction = function( label ) {
             world.draw( canvas );
         }
       }, false );
-      
+
+    window.requestAnimFrame = (function(callback)
+    {
+        return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || window.oRequestAnimationFrame || window.msRequestAnimationFrame ||
+            function(callback) {
+                window.setTimeout(callback, 1000 / 30);
+            };
+    })();
+
+    function animate()
+    {
+        var canvas = document.getElementById('myCanvas');
+        if( world.isAutoEnabled )
+            world.adaptPieces();
+        world.draw( canvas );
+
+        // request new frame
+        requestAnimFrame(function() {
+            animate();
+        });
+    }
+    animate();
+    
 })();
 </script> 
 </body>
