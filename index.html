@@ -155,7 +155,7 @@ function getCircle( center, radius, n )
     for( var i = 0; i < n; ++i )
     {
         poly.points[i] = new Point2D( center.x + radius * Math.cos( i * 2.0 * Math.PI / n ), 
-                                      center.y + radius * Math.sin( i * 2.0 * Math.PI / n ) );
+                                      center.y - radius * Math.sin( i * 2.0 * Math.PI / n ) );
     }
     return poly;
 };
@@ -176,6 +176,17 @@ Polygon.prototype.contains = function( p ) {
         }
     }
     return c;
+};
+// --------------------------------------
+Polygon.prototype.doesLineSegmentIntersect = function( p, p2 ) {
+    for( var i = 0; i < this.points.length; ++i )
+    {
+        var q = this.points[ i ];
+        var q2 = this.points[ (i+1)%this.points.length ];
+        if( lineSegmentsIntersect( p, p2, q, q2 ) )
+            return true;
+    }
+    return false;
 };
 // --------------------------------------
 var PolygonRelationEnum = Object.freeze ({ disjoint: {}, contained: {}, containing: {}, intersecting: {} });
@@ -551,23 +562,18 @@ function World( ctx ) {
     this.targets[1].points[3] = new Point2D( this.squareCenter.x + this.squareRadius, this.squareCenter.y - this.squareRadius );
 
     this.pieces = new Array();
-    
-    var test = this.pieces[0] = new Piece();
-    test.atOrigin.points[0] = new Point2D( 34, 10 );
-    test.atOrigin.points[1] = new Point2D( -10, -10 );
-    test.atOrigin.points[2] = new Point2D( 7, 20 );
-    test.originToTarget[0] = new Transform( 0.3, this.circleCenter );
-    test.originToTarget[1] = new Transform( 0.6, this.squareCenter );
-    test.recenter();
-    
-    var test2 = this.pieces[1] = new Piece();
-    test2.atOrigin.points[0] = new Point2D( -17, 50 );
-    test2.atOrigin.points[1] = new Point2D( 70, 20 );
-    test2.atOrigin.points[2] = new Point2D( 34, 10 );
-    test2.atOrigin.points[3] = new Point2D( -10, -10 );
-    test2.originToTarget[0] = new Transform( 0.7, new Point2D( this.circleCenter.x - 50.0, this.circleCenter.y - 50.0 ) );
-    test2.originToTarget[1] = new Transform( 2.8, new Point2D( this.squareCenter.x + 50.0, this.squareCenter.y - 50.0 ) );
-    test2.recenter();
+   
+    // make some pieces
+    var nPieces = Math.floor( Math.random()*3 ) + 4 ;
+    var scatterRadius = this.circleRadius * 0.7;
+    for( var iPiece = 0; iPiece < nPieces; ++iPiece ) {
+        var piece = this.pieces[ iPiece ] = new Piece();
+        piece.atOrigin = getCircle( new Point2D( 0, 0 ), Math.random()*20+20, Math.floor(Math.random()*4)+3 );
+        for( var iTarget = 0; iTarget < this.targets.length; ++iTarget )
+            piece.originToTarget[ iTarget ] = new Transform( Math.random()*2.0*Math.PI, add( this.targets[ iTarget ].getCentroid(), 
+                                                             new Point2D( Math.random()*scatterRadius*2-scatterRadius,
+                                                                          Math.random()*scatterRadius*2-scatterRadius ) ) );
+    }
     
     this.buttons = new Array();
     
@@ -654,14 +660,10 @@ World.prototype.getAreaCovered = function() {
 // --------------------------------------
 World.prototype.addNewPiece = function() {
     var p = new Piece();
-    p.atOrigin.points[0] = new Point2D( -17, 50 );
-    p.atOrigin.points[1] = new Point2D( 70, 20 );
-    p.atOrigin.points[2] = new Point2D( 34, 10 );
-    p.atOrigin.points[3] = new Point2D( -10, -10 );
-    p.originToTarget[0] = new Transform( 0.7, new Point2D( this.circleCenter.x - 50.0, this.circleCenter.y - 50.0 ) );
-    p.originToTarget[1] = new Transform( 2.8, new Point2D( this.squareCenter.x + 50.0, this.squareCenter.y - 50.0 ) );
-    p.recenter();
-    this.pieces.unshift( p ); // add to start of list, so appears on top
+    p.atOrigin = getCircle( new Point2D( 0, 0 ), 30, 6 );
+    for( var iTarget = 0; iTarget < this.targets.length; ++iTarget )
+        p.originToTarget[ iTarget ] = new Transform( Math.random() * 2.0 * Math.PI, this.targets[ iTarget ].getCentroid() );
+    this.pieces.unshift( p ); // add to start of list, so it appears on top
 };
 // --------------------------------------
 World.prototype.deleteSelectedPiece = function() {
@@ -712,7 +714,14 @@ World.prototype.clipPiecesAgainstOthers = function() {
                 var otherPolygonOnTarget = this.pieces[ iOtherPiece ].getPolygonOnTarget( iTarget );
                 for( iPt = polygonOnTarget.points.length-1; iPt >= 0; --iPt ) 
                 {
-                    if( otherPolygonOnTarget.contains( polygonOnTarget.points[ iPt ] ) )
+                    // check that the point isn't inside the other piece
+                    // and that its edges don't intersect it
+                    var pLeft = polygonOnTarget.points[ (iPt+polygonOnTarget.points.length-1)%polygonOnTarget.points.length ];
+                    var pHere = polygonOnTarget.points[ iPt ];
+                    var pRight = polygonOnTarget.points[ (iPt+1)%polygonOnTarget.points.length ];
+                    if( otherPolygonOnTarget.contains( pHere ) ||
+                        otherPolygonOnTarget.doesLineSegmentIntersect( pLeft, pHere ) || 
+                        otherPolygonOnTarget.doesLineSegmentIntersect( pHere, pRight ) )
                     {
                         piece.atOrigin.points.splice( iPt, 1 );
                         if( piece.atOrigin.points.length < 3 )
@@ -766,6 +775,13 @@ World.prototype.adaptPieces = function() {
                             continue;
                         var otherPolygonOnTarget = this.pieces[ iOtherPiece ].getPolygonOnTarget( iTarget );
                         if( otherPolygonOnTarget.contains( pOnTarget ) ) {
+                            newPosIsOK = false;
+                            break;
+                        }
+                        // also check that the changed edges don't intersect any polygon
+                        var left = piece.originToTarget[ iTarget ].apply( piece.atOrigin.points[ (iPt+piece.atOrigin.points.length-1)%piece.atOrigin.points.length ] );
+                        var right = piece.originToTarget[ iTarget ].apply( piece.atOrigin.points[ (iPt+1)%piece.atOrigin.points.length ] );
+                        if( otherPolygonOnTarget.doesLineSegmentIntersect( left, pOnTarget ) || otherPolygonOnTarget.doesLineSegmentIntersect( pOnTarget, right ) ) {
                             newPosIsOK = false;
                             break;
                         }
