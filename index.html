@@ -561,6 +561,8 @@ function World( ctx ) {
     this.targets[1].points[1] = new Point2D( this.squareCenter.x - this.squareRadius, this.squareCenter.y + this.squareRadius );
     this.targets[1].points[2] = new Point2D( this.squareCenter.x + this.squareRadius, this.squareCenter.y + this.squareRadius );
     this.targets[1].points[3] = new Point2D( this.squareCenter.x + this.squareRadius, this.squareCenter.y - this.squareRadius );
+    
+    this.leaderboard = new Array();
 
     this.pieces = new Array();
    
@@ -582,8 +584,7 @@ function World( ctx ) {
     this.newPieceButton = this.buttons[1] = new Button( "New piece", 143, 20, ctx );
     this.automaticToggleButton = this.buttons[2] = new Button("Go manual", 235, 20, ctx );
     this.automaticToggleButton.isEnabled = true;
-    this.buttons[3] = new Button("Submit solution", 370, 20, ctx );
-    this.buttons[3].isEnabled = true;
+    this.submitSolutionButton = this.buttons[3] = new Button("Submit solution", 370, 20, ctx );
     // TODO: have button return size, to allow auto-positioning
 };
 // --------------------------------------
@@ -600,10 +601,29 @@ World.prototype.draw = function( canvas ) {
     // update the buttons
     this.deletePieceButton.isEnabled = this.isAnyPieceSelected();
     this.newPieceButton.isEnabled = !this.isAutoEnabled;
+    var isCurrentBest = false;
+    if( this.leaderboard && this.leaderboard[ this.pieces.length ] && this.getPercentCovered() > this.leaderboard[ this.pieces.length ].percent )
+        isCurrentBest = true;
+    else if( typeof this.leaderboard[ this.pieces.length ] == "undefined" )
+        isCurrentBest = true;
+    this.submitSolutionButton.isEnabled = isCurrentBest;
     
     // draw the buttons
     for( var iButton = 0; iButton < this.buttons.length; ++iButton )
         this.buttons[ iButton ].draw( context );
+        
+    // draw the leaderboard
+    context.fillStyle = "rgb(0,0,0)";
+    for( var N = 1; N < 10; ++N ) {
+        if( N == this.pieces.length )
+            context.fillStyle = "rgb(0,0,0)";
+        else
+            context.fillStyle = "rgb(100,100,100)";
+        if( this.leaderboard[N] )
+            context.fillText("N="+N+" : "+this.leaderboard[N].percent.toFixed(2)+"%",900,70+N*20);
+        else
+            context.fillText("N="+N+" : unknown",900,70+N*20);
+    }
     
     // draw the targets
     context.fillStyle = "rgb(255,255,255)";
@@ -619,7 +639,7 @@ World.prototype.draw = function( canvas ) {
     // DEBUG: show some information
     context.fillStyle = "rgb(0,0,0)";
     context.font="12px Arial";
-    var percentageCoverage = this.getAreaCovered()*100;
+    var percentageCoverage = this.getPercentCovered();
     context.fillText( 'N = ' + this.pieces.length + " : " + percentageCoverage.toFixed(2) + "% coverage", 10, 100 );
     if( isValidSolution )
         context.fillText( "valid solution (no overlapping)", 10, 130 );
@@ -653,12 +673,12 @@ World.prototype.isValidSolution = function() {
     return true;
 };
 // --------------------------------------
-World.prototype.getAreaCovered = function() {
+World.prototype.getPercentCovered = function() {
     // assumes no overlapping
     var area = 0.0;
     for( var i = 0; i < this.pieces.length; ++i )
         area += this.pieces[i].atOrigin.getArea();
-    return area / ( Math.PI * this.circleRadius * this.circleRadius );
+    return 100.0 * area / ( Math.PI * this.circleRadius * this.circleRadius );
 };
 // --------------------------------------
 World.prototype.addNewPiece = function() {
@@ -856,12 +876,22 @@ World.prototype.onMouseLeftDrag = function( evt ) {
 World.prototype.getSolutionData = function() {
     return {
                 "N" : this.pieces.length,
-                "percent" : this.getAreaCovered() * 100,
+                "percent" : this.getPercentCovered(),
                 "circle" : { "center" : this.circleCenter, "radius" : this.circleRadius }, 
                 "square" : { "center" : this.squareCenter, "radius" : this.squareRadius }, 
                 "pieces" : this.pieces
                 // TODO: username, email address (if volunteered), timestamp?
             };
+};
+// --------------------------------------
+World.prototype.setSolutionData = function( solution ) {
+    // adopt this solution for editing
+    alert( "Not yet implemented" );
+};
+// --------------------------------------
+World.prototype.onRemoteSolutionAdded = function( solution ) {
+    if( solution.N < 10 && (!this.leaderboard[ solution.N ] || solution.percent > this.leaderboard[ solution.N ].percent ) )
+        this.leaderboard[ solution.N ] = solution;
 };
 // --------------------------------------
 World.prototype.doButtonAction = function( label ) {
@@ -888,6 +918,11 @@ World.prototype.doButtonAction = function( label ) {
     resizeCanvas();
     
     // events:
+
+    var dataRef = new Firebase('https://circle-squaring.firebaseio.com');
+    dataRef.on( 'child_added', function( data ) {
+        world.onRemoteSolutionAdded( data.val() );
+    });
 
     window.addEventListener( 'resize', resizeCanvas, false );
     function resizeCanvas() {
@@ -940,15 +975,12 @@ World.prototype.doButtonAction = function( label ) {
 
     function animate()
     {
-        var canvas = document.getElementById('myCanvas');
         if( world.isAutoEnabled )
             world.adaptPieces();
         world.draw( canvas );
 
         // request new frame
-        requestAnimFrame(function() {
-            animate();
-        });
+        requestAnimFrame( animate );
     }
     animate();
     
