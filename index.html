@@ -485,66 +485,8 @@ Piece.prototype.onMouseLeftDrag = function( evt ) {
     }
 };
 // ======================================
-// Button class
-function Button( label, x, y, ctx ) {
-    this.polygon = new Polygon();
-    this.shadowPolygon = new Polygon();
-    this.label = label;
-    this.isEnabled = false;
-    this.isPressed = false;
-    // initialise a rectangle around the text
-    this.fontHeight = 14;
-    ctx.font = this.fontHeight + "px Arial";
-    var textbox = ctx.measureText( label );
-    var pad = 5;
-    var shadowOffset = 4;
-    this.polygon.points[0] = new Point2D( x - textbox.width/2 - pad, y - this.fontHeight/2 - pad );
-    this.polygon.points[1] = new Point2D( x + textbox.width/2 + pad, y - this.fontHeight/2 - pad );
-    this.polygon.points[2] = new Point2D( x + textbox.width/2 + pad, y + this.fontHeight/2 + pad*2 );
-    this.polygon.points[3] = new Point2D( x - textbox.width/2 - pad, y + this.fontHeight/2 + pad*2 );
-    this.textPos = new Point2D( this.polygon.points[3].x + pad, this.polygon.points[3].y - pad*2 )
-    // make a shadow below and to the right
-    for( var i = 0; i < this.polygon.points.length; ++i )
-        this.shadowPolygon.points[ i ] = add( this.polygon.points[ i ], new Point2D( shadowOffset, shadowOffset ) );
-};
-// --------------------------------------
-Button.prototype.draw = function( ctx ) {
-    this.shadowPolygon.drawPath( ctx );
-    ctx.fillStyle = "rgba(0,0,0,0.2)";
-    ctx.fill();
-    this.polygon.drawPath( ctx );
-    if( !this.isEnabled )
-        ctx.fillStyle = "rgb(230,230,230)";
-    else if( this.isPressed )
-        ctx.fillStyle = "rgb(255,255,255)";
-    else
-        ctx.fillStyle = "rgb(111,202,255)";
-    ctx.fill();
-    ctx.font = this.fontHeight + "px Arial";
-    if( this.isEnabled )
-        ctx.fillStyle = "rgb(0,0,0)";
-    else
-        ctx.fillStyle = "rgb(200,200,200)";
-    ctx.fillText( this.label, this.textPos.x, this.textPos.y );
-};
-// --------------------------------------
-Button.prototype.onMouseLeftDown = function( evt ) {
-    if( !this.isEnabled )
-        return false;
-    var mousePos = new Point2D( evt.clientX, evt.clientY );
-    if( this.polygon.contains( mousePos ) ) {
-        this.isPressed = true;
-        return true;
-    }
-    return false;
-};
-// --------------------------------------
-Button.prototype.onMouseLeftUp = function( evt ) {
-    this.isPressed = false;
-};
-// ======================================
 // World class
-function World( ctx ) {
+function World() {
     this.isAutoEnabled = true;
 
     this.circleCenter = new Point2D( 250, 350 );
@@ -562,8 +504,6 @@ function World( ctx ) {
     this.targets[1].points[2] = new Point2D( this.squareCenter.x + this.squareRadius, this.squareCenter.y + this.squareRadius );
     this.targets[1].points[3] = new Point2D( this.squareCenter.x + this.squareRadius, this.squareCenter.y - this.squareRadius );
     
-    this.leaderboard = new Array();
-
     this.pieces = new Array();
    
     // make some pieces
@@ -577,53 +517,15 @@ function World( ctx ) {
                                                              new Point2D( Math.random()*scatterRadius*2-scatterRadius,
                                                                           Math.random()*scatterRadius*2-scatterRadius ) ) );
     }
-    
-    this.buttons = new Array();
-    
-    this.deletePieceButton = this.buttons[0] = new Button( "Delete piece", 50, 20, ctx );
-    this.newPieceButton = this.buttons[1] = new Button( "New piece", 143, 20, ctx );
-    this.automaticToggleButton = this.buttons[2] = new Button("Go manual", 235, 20, ctx );
-    this.automaticToggleButton.isEnabled = true;
-    this.submitSolutionButton = this.buttons[3] = new Button("Submit solution", 370, 20, ctx );
-    // TODO: have button return size, to allow auto-positioning
 };
 // --------------------------------------
-World.prototype.draw = function( canvas ) {
-    var context = canvas.getContext( "2d" );
-    var isValidSolution = this.isValidSolution();
+World.prototype.draw = function( context, width, height ) {
     
     // draw the background
     context.fillStyle = "rgb(200,200,200)";
     context.beginPath();
-    context.fillRect( 0, 0, canvas.width, canvas.height );
+    context.fillRect( 0, 0, width, height );
     context.closePath();
-    
-    // update the buttons
-    this.deletePieceButton.isEnabled = this.isAnyPieceSelected();
-    this.newPieceButton.isEnabled = !this.isAutoEnabled;
-    var isCurrentBest = false;
-    if( this.leaderboard && this.leaderboard[ this.pieces.length ] && this.getPercentCovered() > this.leaderboard[ this.pieces.length ].percent )
-        isCurrentBest = true;
-    else if( typeof this.leaderboard[ this.pieces.length ] == "undefined" )
-        isCurrentBest = true;
-    this.submitSolutionButton.isEnabled = isCurrentBest;
-    
-    // draw the buttons
-    for( var iButton = 0; iButton < this.buttons.length; ++iButton )
-        this.buttons[ iButton ].draw( context );
-        
-    // draw the leaderboard
-    context.fillStyle = "rgb(0,0,0)";
-    for( var N = 1; N < 10; ++N ) {
-        if( N == this.pieces.length )
-            context.fillStyle = "rgb(0,0,0)";
-        else
-            context.fillStyle = "rgb(100,100,100)";
-        if( this.leaderboard[N] )
-            context.fillText("N="+N+" : "+this.leaderboard[N].percent.toFixed(2)+"%",900,70+N*20);
-        else
-            context.fillText("N="+N+" : unknown",900,70+N*20);
-    }
     
     // draw the targets
     context.fillStyle = "rgb(255,255,255)";
@@ -635,16 +537,6 @@ World.prototype.draw = function( canvas ) {
     // draw the pieces (in reverse order so that the transparency appearance matches the selection behavior)
     for( var iPiece = this.pieces.length - 1; iPiece >= 0; --iPiece )
         this.pieces[ iPiece ].draw( context );
-    
-    // DEBUG: show some information
-    context.fillStyle = "rgb(0,0,0)";
-    context.font="12px Arial";
-    var percentageCoverage = this.getPercentCovered();
-    context.fillText( 'N = ' + this.pieces.length + " : " + percentageCoverage.toFixed(2) + "% coverage", 10, 100 );
-    if( isValidSolution )
-        context.fillText( "valid solution (no overlapping)", 10, 130 );
-    else
-        context.fillText( "overlapping detected!", 10, 130 );
 };
 // --------------------------------------
 World.prototype.isValidSolution = function() {
@@ -840,13 +732,6 @@ World.prototype.onMouseMove = function( evt ) {
 };
 // --------------------------------------
 World.prototype.onMouseLeftDown = function( evt ) {
-    // was a button pressed?
-    for( var iButton = 0; iButton < this.buttons.length; ++iButton ) {
-        if( this.buttons[ iButton ].onMouseLeftDown( evt ) ) {
-            this.doButtonAction( this.buttons[ iButton ].label );
-            return;
-        }
-    }
     // send the message to the pieces
     var iPieceSelected = -1;
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
@@ -863,9 +748,6 @@ World.prototype.onMouseLeftDown = function( evt ) {
 };
 // --------------------------------------
 World.prototype.onMouseLeftUp = function( evt ) {
-    // tell the buttons
-    for( var iButton = 0; iButton < this.buttons.length; ++iButton )
-        this.buttons[ iButton ].onMouseLeftUp( evt );
 };
 // --------------------------------------
 World.prototype.onMouseLeftDrag = function( evt ) {
@@ -874,13 +756,16 @@ World.prototype.onMouseLeftDrag = function( evt ) {
 };
 // --------------------------------------
 World.prototype.getSolutionData = function() {
+    var date = new Date();
     return {
                 "N" : this.pieces.length,
                 "percent" : this.getPercentCovered(),
                 "circle" : { "center" : this.circleCenter, "radius" : this.circleRadius }, 
                 "square" : { "center" : this.squareCenter, "radius" : this.squareRadius }, 
-                "pieces" : this.pieces
-                // TODO: username, email address (if volunteered), timestamp?
+                "pieces" : this.pieces,
+                "username" : "tim_hutton", // TODO: ask user
+                "email" : "tim.hutton@gmail.com", // TODO: ask user
+                "timestamp" : date.toISOString()
             };
 };
 // --------------------------------------
@@ -888,82 +773,105 @@ World.prototype.setSolutionData = function( solution ) {
     // adopt this solution for editing
     alert( "Not yet implemented" );
 };
-// --------------------------------------
-World.prototype.onRemoteSolutionAdded = function( solution ) {
-    if( solution.N < 10 && (!this.leaderboard[ solution.N ] || solution.percent > this.leaderboard[ solution.N ].percent ) )
-        this.leaderboard[ solution.N ] = solution;
+// ======================================
+// Button class
+function Button( label, x, y, ctx ) {
+    this.polygon = new Polygon();
+    this.shadowPolygon = new Polygon();
+    this.label = label;
+    this.isEnabled = false;
+    this.isPressed = false;
+    // initialise a rectangle around the text
+    this.fontHeight = 14;
+    ctx.font = this.fontHeight + "px Arial";
+    var textbox = ctx.measureText( label );
+    var pad = 5;
+    var shadowOffset = 4;
+    this.polygon.points[0] = new Point2D( x - textbox.width/2 - pad, y - this.fontHeight/2 - pad );
+    this.polygon.points[1] = new Point2D( x + textbox.width/2 + pad, y - this.fontHeight/2 - pad );
+    this.polygon.points[2] = new Point2D( x + textbox.width/2 + pad, y + this.fontHeight/2 + pad*2 );
+    this.polygon.points[3] = new Point2D( x - textbox.width/2 - pad, y + this.fontHeight/2 + pad*2 );
+    this.textPos = new Point2D( this.polygon.points[3].x + pad, this.polygon.points[3].y - pad*2 )
+    // make a shadow below and to the right
+    for( var i = 0; i < this.polygon.points.length; ++i )
+        this.shadowPolygon.points[ i ] = add( this.polygon.points[ i ], new Point2D( shadowOffset, shadowOffset ) );
 };
 // --------------------------------------
-World.prototype.doButtonAction = function( label ) {
-    switch( label ) {
-        case "Delete piece":        this.deleteSelectedPiece(); break;
-        case "New piece":           this.addNewPiece(); break;
-        case "Go auto":             this.isAutoEnabled = true; this.automaticToggleButton.label = "Go manual"; break;
-        case "Go manual":           this.isAutoEnabled = false; this.automaticToggleButton.label = "Go auto"; break;
-        case "Submit solution":     var dataRef = new Firebase("https://circle-squaring.firebaseio.com"); 
-                                    dataRef.push( this.getSolutionData() ); 
-                                    break;
-        default: alert("Unknown button: "+label);
+Button.prototype.draw = function( ctx ) {
+    this.shadowPolygon.drawPath( ctx );
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fill();
+    this.polygon.drawPath( ctx );
+    if( !this.isEnabled )
+        ctx.fillStyle = "rgb(230,230,230)";
+    else if( this.isPressed )
+        ctx.fillStyle = "rgb(255,255,255)";
+    else
+        ctx.fillStyle = "rgb(111,202,255)";
+    ctx.fill();
+    ctx.font = this.fontHeight + "px Arial";
+    if( this.isEnabled )
+        ctx.fillStyle = "rgb(0,0,0)";
+    else
+        ctx.fillStyle = "rgb(200,200,200)";
+    ctx.fillText( this.label, this.textPos.x, this.textPos.y );
+};
+// --------------------------------------
+Button.prototype.onMouseLeftDown = function( evt ) {
+    if( !this.isEnabled )
+        return false;
+    var mousePos = new Point2D( evt.clientX, evt.clientY );
+    if( this.polygon.contains( mousePos ) ) {
+        this.isPressed = true;
+        return true;
     }
+    return false;
+};
+// --------------------------------------
+Button.prototype.onMouseLeftUp = function( evt ) {
+    this.isPressed = false;
 };
 // ======================================
-
-(function() 
+function MyCanvas() 
 {
-    var canvas  = document.getElementById( 'myCanvas' );
-    var context = canvas.getContext( '2d' );
-    var world   = new World( context );
-    var mouseLeftDown = false;
+    this.canvas  = document.getElementById( 'myCanvas' );
+    this.context = this.canvas.getContext( '2d' );
+    this.world   = new World( );
+    this.mouseLeftDown = false;
     
-    resizeCanvas();
+    this.leaderboard = new Array();
+
+    this.buttons = new Array();
     
+    this.deletePieceButton = this.buttons[0] = new Button( "Delete piece", 50, 20, this.context );
+    this.newPieceButton = this.buttons[1] = new Button( "New piece", 143, 20, this.context );
+    this.automaticToggleButton = this.buttons[2] = new Button("Go manual", 235, 20, this.context );
+    this.automaticToggleButton.isEnabled = true;
+    this.submitSolutionButton = this.buttons[3] = new Button("Submit solution", 370, 20, this.context );
+    // TODO: have button return size, to allow auto-positioning
+
     // events:
 
-    var dataRef = new Firebase('https://circle-squaring.firebaseio.com');
-    dataRef.on( 'child_added', function( data ) {
-        world.onRemoteSolutionAdded( data.val() );
+    // delete this when have copied out desired solution
+    this.dataRef = new Firebase('https://circle-squaring.firebaseio.com');
+    this.dataRef.on( 'child_added', function( data ) {
+        MyCanvasInstance.onRemoteSolutionAdded( data.val() );
     });
 
-    window.addEventListener( 'resize', resizeCanvas, false );
-    function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        world.draw( canvas ); 
-    };
-    
-    canvas.addEventListener( 'mousemove', function( evt ) {
-        if( mouseLeftDown )
-            world.onMouseLeftDrag( evt );
-        else
-            world.onMouseMove( evt );
-        world.draw( canvas );
-      }, false );
+    this.dataRef2 = new Firebase('https://circle-squaring.firebaseio.com/solutions');
+    this.dataRef2.on( 'child_added', function( data ) {
+        MyCanvasInstance.onRemoteSolutionAdded( data.val() );
+    });
 
-    canvas.addEventListener( 'mousedown', function( evt ) {
-        if( evt.button == 0 ) {
-            mouseLeftDown = true;
-            world.onMouseLeftDown( evt );
-            world.draw( canvas );
-        }
-      }, false );
+    window.addEventListener( 'resize', function() { MyCanvasInstance.resizeCanvas() }, false );
 
-    canvas.addEventListener( 'mouseup', function( evt ) {
-        if( evt.button == 0 && mouseLeftDown ) {
-            mouseLeftDown = false;
-            world.onMouseLeftUp( evt );
-            world.draw( canvas );
-        }
-      }, false );
+    this.canvas.addEventListener( 'mousemove', function(evt) { MyCanvasInstance.onMouseMove(evt); }, false );
+
+    this.canvas.addEventListener( 'mousedown', function( evt ) { MyCanvasInstance.onMouseDown(evt); }, false );
+
+    this.canvas.addEventListener( 'mouseup', function( evt ) { MyCanvasInstance.onMouseUp(evt); }, false );
       
-    canvas.addEventListener( 'mouseout', function( evt ) {
-        // if user drags the mouse out and then releases we won't receive the mouseUp event,
-        // so instead we treat mouseOut as mouseUp (if button is pressed)
-        if( mouseLeftDown ) {
-            mouseLeftDown = false;
-            world.onMouseLeftUp( evt );
-            world.draw( canvas );
-        }
-      }, false );
+    this.canvas.addEventListener( 'mouseout', function( evt ) { MyCanvasInstance.onMouseOut(evt); }, false );
 
     window.requestAnimFrame = (function(callback)
     {
@@ -972,19 +880,142 @@ World.prototype.doButtonAction = function( label ) {
                 window.setTimeout(callback, 1000 / 30);
             };
     })();
-
-    function animate()
-    {
-        if( world.isAutoEnabled )
-            world.adaptPieces();
-        world.draw( canvas );
-
-        // request new frame
-        requestAnimFrame( animate );
+};
+// --------------------------------------
+MyCanvas.prototype.onMouseMove = function( evt ) {
+    if( this.mouseLeftDown )
+        this.world.onMouseLeftDrag( evt );
+    else
+        this.world.onMouseMove( evt );
+    this.draw();
+};
+// --------------------------------------
+MyCanvas.prototype.onMouseDown = function( evt ) {
+    if( evt.button == 0 ) {
+        this.mouseLeftDown = true;
+        this.onMouseLeftDown( evt );
+        this.draw();
     }
-    animate();
+};
+MyCanvas.prototype.onMouseLeftDown = function( evt ) {
+    // was a button pressed?
+    for( var iButton = 0; iButton < this.buttons.length; ++iButton ) {
+        if( this.buttons[ iButton ].onMouseLeftDown( evt ) ) {
+            this.doButtonAction( this.buttons[ iButton ].label );
+            return;
+        }
+    }
+    // otherwise, pass the message to the scene
+    this.world.onMouseLeftDown( evt );
+    this.draw();
+};
+// --------------------------------------
+MyCanvas.prototype.onMouseUp = function( evt ) {
+    if( evt.button == 0 && this.mouseLeftDown ) {
+        this.mouseLeftDown = false;
+        this.onMouseLeftUp( evt );
+        this.draw();
+    }
+};
+// --------------------------------------
+MyCanvas.prototype.onMouseLeftUp = function( evt ) {
+    // tell the buttons
+    for( var iButton = 0; iButton < this.buttons.length; ++iButton )
+        this.buttons[ iButton ].onMouseLeftUp( evt );
+    // tell the scene
+    this.world.onMouseLeftUp( evt );
+    this.draw();
+};
+// --------------------------------------
+MyCanvas.prototype.onMouseOut = function( evt ) {
+    // if user drags the mouse out and then releases we won't receive the mouseUp event,
+    // so instead we treat mouseOut as mouseUp (if button is pressed)
+    if( this.mouseLeftDown ) {
+        this.mouseLeftDown = false;
+        this.world.onMouseLeftUp( evt );
+        this.draw();
+    }
+};      
+// --------------------------------------
+MyCanvas.prototype.resizeCanvas = function() {
+    this.canvas.width = window.innerWidth;
+    this.canvas.height = window.innerHeight;
+    this.draw(); 
+};
+// --------------------------------------
+MyCanvas.prototype.animate = function() {
+    if( this.world.isAutoEnabled )
+        this.world.adaptPieces();
+    this.draw();
+
+    // request new frame
+    requestAnimFrame( function() { MyCanvasInstance.animate(); } );
+}
+// --------------------------------------
+MyCanvas.prototype.draw = function() {
+    this.world.draw( this.context, this.canvas.width, this.canvas.height );
     
-})();
+    // update the buttons
+    this.deletePieceButton.isEnabled = this.world.isAnyPieceSelected();
+    this.newPieceButton.isEnabled = !this.world.isAutoEnabled;
+    var isCurrentBest = false;
+    if( this.leaderboard && this.leaderboard[ this.world.pieces.length ] && this.world.getPercentCovered() > this.leaderboard[ this.world.pieces.length ].percent )
+        isCurrentBest = true;
+    else if( typeof this.leaderboard[ this.world.pieces.length ] == "undefined" )
+        isCurrentBest = true;
+    this.submitSolutionButton.isEnabled = isCurrentBest;
+    
+    // draw the buttons
+    for( var iButton = 0; iButton < this.buttons.length; ++iButton )
+        this.buttons[ iButton ].draw( this.context );
+        
+    // DEBUG: show some information
+    this.context.fillStyle = "rgb(0,0,0)";
+    this.context.font="12px Arial";
+    this.context.fillText( 'N = ' + this.world.pieces.length + " : " + this.world.getPercentCovered().toFixed(2) + "% coverage", 10, 100 );
+    if( this.world.isValidSolution() )
+        this.context.fillText( "valid solution (no overlapping)", 10, 130 );
+    else
+        this.context.fillText( "overlapping detected!", 10, 130 );
+
+    // draw the leaderboard
+    this.context.fillStyle = "rgb(0,0,0)";
+    for( var N = 1; N < 10; ++N ) {
+        if( N == this.world.pieces.length )
+            this.context.fillStyle = "rgb(0,0,0)";
+        else
+            this.context.fillStyle = "rgb(100,100,100)";
+        if( this.leaderboard[N] )
+            this.context.fillText("N="+N+" : "+this.leaderboard[N].percent.toFixed(2)+"%",900,70+N*20);
+        else
+            this.context.fillText("N="+N+" : unknown",900,70+N*20);
+    }
+}
+// --------------------------------------
+MyCanvas.prototype.doButtonAction = function( label ) {
+    switch( label ) {
+        case "Delete piece":        this.world.deleteSelectedPiece(); break;
+        case "New piece":           this.world.addNewPiece(); break;
+        case "Go auto":             this.world.isAutoEnabled = true; this.automaticToggleButton.label = "Go manual"; break;
+        case "Go manual":           this.world.isAutoEnabled = false; this.automaticToggleButton.label = "Go auto"; break;
+        case "Submit solution":     var dataRef = new Firebase("https://circle-squaring.firebaseio.com/solutions"); 
+                                    dataRef.push( this.world.getSolutionData() ); 
+                                    break;
+        default: alert("Unknown button: "+label);
+    }
+    this.draw();
+};
+// --------------------------------------
+MyCanvas.prototype.onRemoteSolutionAdded = function( solution ) {
+    if( solution.N < 10 && (!this.leaderboard[ solution.N ] || solution.percent > this.leaderboard[ solution.N ].percent ) )
+        this.leaderboard[ solution.N ] = solution;
+    this.draw();
+};
+// --------------------------------------
+var MyCanvasInstance = new MyCanvas();
+MyCanvasInstance.resizeCanvas();
+MyCanvasInstance.animate();
+// --------------------------------------
 </script> 
 </body>
 </html>
