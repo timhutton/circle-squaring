@@ -286,6 +286,30 @@ Polygon.prototype.isSelfIntersecting = function() {
     }
     return false;
 };
+// --------------------------------------
+Polygon.prototype.removeSelfIntersectingVertices = function() {
+    // does any line segment cross any other?
+    for( var iPt = this.points.length-1; iPt >= 0; --iPt )
+    {
+        var iP1 = iPt;
+        var iP2 = (iPt+1)%this.points.length;
+        var p1 = this.points[ iP1 ];
+        var p2 = this.points[ iP2 ];
+        for( var iPt2 = 0; iPt2 < iPt-1; ++iPt2 )
+        {
+            var iQ1 = iPt2;
+            var iQ2 = (iPt2+1)%this.points.length;
+            if( iQ1 == iP2 || iQ2 == iP1 )
+                continue; // neighboring edges, ignore
+            var q1 = this.points[ iQ1 ];
+            var q2 = this.points[ iQ2 ];
+            if( lineSegmentsIntersect( p1, p2, q1, q2 ) ) {
+                this.points.splice( iPt, 1 );
+                break;
+            }
+        }
+    }
+};
 // ======================================
 // Piece class
 // --------------------------------------
@@ -697,6 +721,9 @@ World.prototype.deleteSelectedPiece = function() {
             this.pieces.splice( iPiece, 1 );
 };
 // --------------------------------------
+World.prototype.clipPiecesAgainstSelf = function() {
+};
+// --------------------------------------
 World.prototype.clipPiecesAgainstTargets = function() {
     for( var iPiece = this.pieces.length-1; iPiece >=0; --iPiece ) 
     {
@@ -767,6 +794,8 @@ World.prototype.clipPiecesAgainstOthers = function() {
 };
 // --------------------------------------
 World.prototype.adaptPieces = function() {
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) 
+        this.pieces[ iPiece ].atOrigin.removeSelfIntersectingVertices();
     this.clipPiecesAgainstTargets();
     this.clipPiecesAgainstOthers();
     var growStep = 1.0;
@@ -775,16 +804,13 @@ World.prototype.adaptPieces = function() {
     {
         var piece = this.pieces[ iPiece ];
         piece.atOrigin.subdivide( 30 );
-        piece.atOrigin.removeVerticesCloserThan( 10 );
+        piece.atOrigin.removeVerticesCloserThan( 5 );
         for( var iPt = 0; iPt < piece.atOrigin.points.length; ++iPt ) 
         {
             var oldPos = new Point2D( piece.atOrigin.points[ iPt ].x, piece.atOrigin.points[ iPt ].y );
             var n = piece.atOrigin.getNormal( iPt ).mul( growStep );
             piece.atOrigin.points[ iPt ].add( n );
             var newPosIsOK = true;
-            // revert if self-intersects
-            if( piece.atOrigin.isSelfIntersecting() )
-                newPosIsOK = false;
             if( newPosIsOK )
             {
                 for( var iTarget = 0; iTarget < piece.originToTarget.length; ++iTarget ) {
