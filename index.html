@@ -755,6 +755,8 @@ World.prototype.clipPiecesAgainstOthers = function() {
     for( var iPiece = this.pieces.length-1; iPiece >=0; --iPiece ) 
     {
         var piece = this.pieces[ iPiece ];
+        if( piece.isSelected() )
+            continue; // don't clip the piece that is currently selected (feels more natural when changing it in auto mode)
         var pieceDeleted = false;
         for( var iTarget = 0; iTarget < this.targets.length; ++iTarget )
         {
