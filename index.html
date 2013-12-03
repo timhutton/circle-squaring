@@ -644,9 +644,11 @@ World.prototype.draw = function( canvas ) {
     this.deletePieceButton.isEnabled = this.isAnyPieceSelected();
     this.newPieceButton.isEnabled = !this.isAutoEnabled;
     var isCurrentBest = false;
-    if( this.leaderboard && this.leaderboard[ this.pieces.length ] && this.getPercentCovered() > this.leaderboard[ this.pieces.length ].percent+0.01 )
+    if( this.pieces.length <1 || this.pieces.length >10 )
+        isCurrentBest = false;
+    else if( isValidSolution && this.leaderboard[ this.pieces.length ] && this.getPercentCovered() > this.leaderboard[ this.pieces.length ].percent+0.01 )
         isCurrentBest = true;
-    else if( typeof this.leaderboard[ this.pieces.length ] == "undefined" )
+    else if( isValidSolution && typeof this.leaderboard[ this.pieces.length ] == "undefined" )
         isCurrentBest = true;
     this.submitSolutionButton.isEnabled = isCurrentBest;
     
