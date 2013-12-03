@@ -971,7 +971,7 @@ World.prototype.onRemoteSolutionAdded = function( solution ) {
             time: new Date( solution.timestamp ), 
             text: "New record for N=" + solution.N + ": " + solution.percent.toFixed(2) + "% found by " + solution.username
         } );
-    this.updates.sort( function( a, b ) { return a.time.getTime() < b.time.getTime(); } );
+    this.updates.sort( function( a, b ) { return b.time.getTime() - a.time.getTime(); } );
     // TODO: remove ones that weren't records (submitted before getting a server response about the leaderboard)
 };
 // --------------------------------------
