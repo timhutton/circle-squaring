@@ -564,6 +564,8 @@ function World( ctx ) {
     
     this.leaderboard = new Array();
 
+    this.username = "anon" + Math.floor(Math.random()*9000+1000);
+    
     this.pieces = new Array();
    
     // make some pieces
@@ -879,8 +881,9 @@ World.prototype.getSolutionData = function() {
                 "percent" : this.getPercentCovered(),
                 "circle" : { "center" : this.circleCenter, "radius" : this.circleRadius }, 
                 "square" : { "center" : this.squareCenter, "radius" : this.squareRadius }, 
-                "pieces" : this.pieces
-                // TODO: username, email address (if volunteered), timestamp?
+                "pieces" : this.pieces,
+                "username" : this.username,
+                "timestamp" : (new Date()).toJSON()
             };
 };
 // --------------------------------------
@@ -894,15 +897,21 @@ World.prototype.onRemoteSolutionAdded = function( solution ) {
         this.leaderboard[ solution.N ] = solution;
 };
 // --------------------------------------
+World.prototype.onSubmitSolution = function() {
+    this.username = prompt( "Enter a username:", this.username );
+    if( this.username == null )
+        return; // user cancelled when asked for username
+    var dataRef = new Firebase("https://circle-squaring.firebaseio.com/solutions"); 
+    dataRef.push( this.getSolutionData() ); 
+};
+// --------------------------------------
 World.prototype.doButtonAction = function( label ) {
     switch( label ) {
         case "Delete piece":        this.deleteSelectedPiece(); break;
         case "New piece":           this.addNewPiece(); break;
         case "Go auto":             this.isAutoEnabled = true; this.automaticToggleButton.label = "Go manual"; break;
         case "Go manual":           this.isAutoEnabled = false; this.automaticToggleButton.label = "Go auto"; break;
-        case "Submit solution":     var dataRef = new Firebase("https://circle-squaring.firebaseio.com"); 
-                                    dataRef.push( this.getSolutionData() ); 
-                                    break;
+        case "Submit solution":     this.onSubmitSolution(); break;
         default: alert("Unknown button: "+label);
     }
 };
@@ -919,8 +928,14 @@ World.prototype.doButtonAction = function( label ) {
     
     // events:
 
+    // TODO: remove this when no longer needed
     var dataRef = new Firebase('https://circle-squaring.firebaseio.com');
     dataRef.on( 'child_added', function( data ) {
+        world.onRemoteSolutionAdded( data.val() );
+    });
+
+    var dataRef2 = new Firebase('https://circle-squaring.firebaseio.com/solutions');
+    dataRef2.on( 'child_added', function( data ) {
         world.onRemoteSolutionAdded( data.val() );
     });
 
