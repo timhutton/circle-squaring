@@ -894,15 +894,15 @@ MyCanvas.prototype.onMouseDown = function( evt ) {
     if( evt.button == 0 ) {
         this.mouseLeftDown = true;
         this.onMouseLeftDown( evt );
-        this.draw();
     }
 };
+// --------------------------------------
 MyCanvas.prototype.onMouseLeftDown = function( evt ) {
     // was a button pressed?
     for( var iButton = 0; iButton < this.buttons.length; ++iButton ) {
         if( this.buttons[ iButton ].onMouseLeftDown( evt ) ) {
-            alert( 'button '+iButton+' pressed' );
             this.doButtonAction( this.buttons[ iButton ].label );
+            this.draw();
             return;
         }
     }
@@ -915,7 +915,6 @@ MyCanvas.prototype.onMouseUp = function( evt ) {
     if( evt.button == 0 && this.mouseLeftDown ) {
         this.mouseLeftDown = false;
         this.onMouseLeftUp( evt );
-        this.draw();
     }
 };
 // --------------------------------------
@@ -923,7 +922,7 @@ MyCanvas.prototype.onMouseLeftUp = function( evt ) {
     // tell the buttons
     for( var iButton = 0; iButton < this.buttons.length; ++iButton )
         this.buttons[ iButton ].onMouseLeftUp( evt );
-    // tell the scene
+    // tell the scene too
     this.world.onMouseLeftUp( evt );
     this.draw();
 };
@@ -933,8 +932,7 @@ MyCanvas.prototype.onMouseOut = function( evt ) {
     // so instead we treat mouseOut as mouseUp (if button is pressed)
     if( this.mouseLeftDown ) {
         this.mouseLeftDown = false;
-        this.world.onMouseLeftUp( evt );
-        this.draw();
+        this.onMouseLeftUp( evt );
     }
 };      
 // --------------------------------------
@@ -997,8 +995,8 @@ MyCanvas.prototype.doButtonAction = function( label ) {
     switch( label ) {
         case "Delete piece":        this.world.deleteSelectedPiece(); break;
         case "New piece":           this.world.addNewPiece(); break;
-        case "Go auto":             this.world.isAutoEnabled = true; this.automaticToggleButton.label = "Go manual"; alert('gone auto'); break;
-        case "Go manual":           this.world.isAutoEnabled = false; this.automaticToggleButton.label = "Go auto"; alert('gone manual'); break;
+        case "Go auto":             this.world.isAutoEnabled = true; this.automaticToggleButton.label = "Go manual"; break;
+        case "Go manual":           this.world.isAutoEnabled = false; this.automaticToggleButton.label = "Go auto"; break;
         case "Submit solution":     var dataRef = new Firebase("https://circle-squaring.firebaseio.com/solutions"); 
                                     dataRef.push( this.world.getSolutionData() ); 
                                     break;
