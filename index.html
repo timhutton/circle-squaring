@@ -510,10 +510,11 @@ Piece.prototype.onMouseLeftDrag = function( evt ) {
 };
 // ======================================
 // Button class
-function Button( label, x, y, ctx ) {
+function Button( label, id, x, y, ctx ) {
     this.polygon = new Polygon();
     this.shadowPolygon = new Polygon();
     this.label = label;
+    this.id = id;
     this.isEnabled = false;
     this.isPressed = false;
     // initialise a rectangle around the text
@@ -522,14 +523,22 @@ function Button( label, x, y, ctx ) {
     var textbox = ctx.measureText( label );
     var pad = 5;
     var shadowOffset = 4;
-    this.polygon.points[0] = new Point2D( x - textbox.width/2 - pad, y - this.fontHeight/2 - pad );
-    this.polygon.points[1] = new Point2D( x + textbox.width/2 + pad, y - this.fontHeight/2 - pad );
-    this.polygon.points[2] = new Point2D( x + textbox.width/2 + pad, y + this.fontHeight/2 + pad*2 );
-    this.polygon.points[3] = new Point2D( x - textbox.width/2 - pad, y + this.fontHeight/2 + pad*2 );
+    this.polygon.points[0] = new Point2D( x, y - this.fontHeight/2 - pad );
+    this.polygon.points[1] = new Point2D( x + textbox.width + pad*2, y - this.fontHeight/2 - pad );
+    this.polygon.points[2] = new Point2D( x + textbox.width + pad*2, y + this.fontHeight/2 + pad*2 );
+    this.polygon.points[3] = new Point2D( x, y + this.fontHeight/2 + pad*2 );
     this.textPos = new Point2D( this.polygon.points[3].x + pad, this.polygon.points[3].y - pad*2 )
     // make a shadow below and to the right
     for( var i = 0; i < this.polygon.points.length; ++i )
         this.shadowPolygon.points[ i ] = add( this.polygon.points[ i ], new Point2D( shadowOffset, shadowOffset ) );
+};
+// --------------------------------------
+Button.prototype.setWidth = function( width ) {
+    var deltaWidth = width - ( this.polygon.points[1].x - this.polygon.points[0].x );
+    this.polygon.points[1].x += deltaWidth;
+    this.polygon.points[2].x += deltaWidth;
+    this.shadowPolygon.points[1].x += deltaWidth;
+    this.shadowPolygon.points[2].x += deltaWidth;
 };
 // --------------------------------------
 Button.prototype.draw = function( ctx ) {
@@ -568,7 +577,7 @@ Button.prototype.onMouseLeftUp = function( evt ) {
 };
 // ======================================
 // World class
-function World( ctx ) {
+function World( context ) {
     this.isAutoEnabled = true;
 
     this.circleCenter = new Point2D( 250, 350 );
@@ -606,12 +615,19 @@ function World( ctx ) {
     
     this.buttons = new Array();
     
-    this.deletePieceButton = this.buttons[0] = new Button( "Delete piece", 50, 20, ctx );
-    this.newPieceButton = this.buttons[1] = new Button( "New piece", 143, 20, ctx );
-    this.automaticToggleButton = this.buttons[2] = new Button("Go manual", 235, 20, ctx );
+    this.deletePieceButton = this.buttons[0] = new Button( "Delete piece", "delete_piece", 15, 20, context );
+    this.newPieceButton = this.buttons[1] = new Button( "New piece", "new_piece", 113, 20, context );
+    this.automaticToggleButton = this.buttons[2] = new Button("Go manual", "toggle_auto", 205, 20, context );
     this.automaticToggleButton.isEnabled = true;
-    this.submitSolutionButton = this.buttons[3] = new Button("Submit solution", 370, 20, ctx );
+    this.submitSolutionButton = this.buttons[3] = new Button("Submit solution", "submit_solution", 340, 20, context );
     // TODO: have button return size, to allow auto-positioning
+
+    for( var N = 1; N <= 10; ++N ) {
+        this.buttons.push( new Button( "N="+N+" : unknown", "leaderboard", 900, 70+N*40, context ) );
+        this.buttons[ this.buttons.length-1 ].setWidth( 200 );
+        if( N==1 )
+            this.iFirstLeaderboardButton = this.buttons.length-1;
+    }
 };
 // --------------------------------------
 World.prototype.draw = function( canvas ) {
@@ -628,7 +644,7 @@ World.prototype.draw = function( canvas ) {
     this.deletePieceButton.isEnabled = this.isAnyPieceSelected();
     this.newPieceButton.isEnabled = !this.isAutoEnabled;
     var isCurrentBest = false;
-    if( this.leaderboard && this.leaderboard[ this.pieces.length ] && this.getPercentCovered() > this.leaderboard[ this.pieces.length ].percent )
+    if( this.leaderboard && this.leaderboard[ this.pieces.length ] && this.getPercentCovered() > this.leaderboard[ this.pieces.length ].percent+0.01 )
         isCurrentBest = true;
     else if( typeof this.leaderboard[ this.pieces.length ] == "undefined" )
         isCurrentBest = true;
@@ -638,19 +654,6 @@ World.prototype.draw = function( canvas ) {
     for( var iButton = 0; iButton < this.buttons.length; ++iButton )
         this.buttons[ iButton ].draw( context );
         
-    // draw the leaderboard
-    context.fillStyle = "rgb(0,0,0)";
-    for( var N = 1; N < 10; ++N ) {
-        if( N == this.pieces.length )
-            context.fillStyle = "rgb(0,0,0)";
-        else
-            context.fillStyle = "rgb(100,100,100)";
-        if( this.leaderboard[N] )
-            context.fillText("N="+N+" : "+this.leaderboard[N].percent.toFixed(2)+"%",900,70+N*20);
-        else
-            context.fillText("N="+N+" : unknown",900,70+N*20);
-    }
-    
     // draw the targets
     context.fillStyle = "rgb(255,255,255)";
     for( var i = 0; i < this.targets.length; ++i ) {
@@ -719,9 +722,6 @@ World.prototype.deleteSelectedPiece = function() {
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
         if( this.pieces[ iPiece ].isSelected() )
             this.pieces.splice( iPiece, 1 );
-};
-// --------------------------------------
-World.prototype.clipPiecesAgainstSelf = function() {
 };
 // --------------------------------------
 World.prototype.clipPiecesAgainstTargets = function() {
@@ -820,16 +820,11 @@ World.prototype.adaptPieces = function( growStep ) {
                         newPosIsOK = false;
                         break;
                     }
-                    // check whether the point is inside any other shape
+                    // check whether the point doesn't intersect any other shape
                     for( var iOtherPiece = 0; iOtherPiece < this.pieces.length; ++iOtherPiece ) {
                         if( iOtherPiece == iPiece )
                             continue;
                         var otherPolygonOnTarget = this.pieces[ iOtherPiece ].getPolygonOnTarget( iTarget );
-                        if( otherPolygonOnTarget.contains( pOnTarget ) ) {
-                            newPosIsOK = false;
-                            break;
-                        }
-                        // also check that the changed edges don't intersect any polygon
                         var left = piece.originToTarget[ iTarget ].apply( piece.atOrigin.points[ (iPt+piece.atOrigin.points.length-1)%piece.atOrigin.points.length ] );
                         var right = piece.originToTarget[ iTarget ].apply( piece.atOrigin.points[ (iPt+1)%piece.atOrigin.points.length ] );
                         if( otherPolygonOnTarget.doesLineSegmentIntersect( left, pOnTarget ) || otherPolygonOnTarget.doesLineSegmentIntersect( pOnTarget, right ) ) {
@@ -874,7 +869,7 @@ World.prototype.onMouseLeftDown = function( evt ) {
     // was a button pressed?
     for( var iButton = 0; iButton < this.buttons.length; ++iButton ) {
         if( this.buttons[ iButton ].onMouseLeftDown( evt ) ) {
-            this.doButtonAction( this.buttons[ iButton ].label );
+            this.doButtonAction( this.buttons[ iButton ].id, this.buttons[ iButton ].label );
             return;
         }
     }
@@ -918,12 +913,24 @@ World.prototype.getSolutionData = function() {
 // --------------------------------------
 World.prototype.setSolutionData = function( solution ) {
     // adopt this solution for editing
-    alert( "Not yet implemented" );
+    this.pieces = new Array();
+    for( var iPiece = 0; iPiece < solution.pieces.length; ++iPiece ) {
+        var piece = this.pieces[ iPiece ] = new Piece();
+        for( var iPt = 0; iPt < solution.pieces[ iPiece].atOrigin.points.length; ++iPt )
+            piece.atOrigin.points[ iPt ] = new Point2D( solution.pieces[ iPiece].atOrigin.points[ iPt ].x, solution.pieces[ iPiece].atOrigin.points[ iPt ].y );
+        for( var iTarget = 0; iTarget < 2; ++iTarget )
+            piece.originToTarget[ iTarget ] = new Transform( solution.pieces[ iPiece ].originToTarget[ iTarget ].rotate, solution.pieces[ iPiece ].originToTarget[ iTarget ].translate );
+    }
+    // (assuming for now that targets are the same)
 };
 // --------------------------------------
 World.prototype.onRemoteSolutionAdded = function( solution ) {
-    if( solution.N < 10 && (!this.leaderboard[ solution.N ] || solution.percent > this.leaderboard[ solution.N ].percent ) )
+    if( solution.N < 10 && (!this.leaderboard[ solution.N ] || solution.percent > this.leaderboard[ solution.N ].percent ) ) {
         this.leaderboard[ solution.N ] = solution;
+        var iButton = this.iFirstLeaderboardButton + solution.N - 1;
+        this.buttons[ iButton ].label = "N="+solution.N+" : "+this.leaderboard[ solution.N ].percent.toFixed(2)+"% ("+this.leaderboard[ solution.N ].username+")";
+        this.buttons[ iButton ].isEnabled = true;
+    }
 };
 // --------------------------------------
 World.prototype.onSubmitSolution = function() {
@@ -934,13 +941,20 @@ World.prototype.onSubmitSolution = function() {
     dataRef.push( this.getSolutionData() ); 
 };
 // --------------------------------------
-World.prototype.doButtonAction = function( label ) {
-    switch( label ) {
-        case "Delete piece":        this.deleteSelectedPiece(); break;
-        case "New piece":           this.addNewPiece(); break;
-        case "Go auto":             this.isAutoEnabled = true; this.automaticToggleButton.label = "Go manual"; break;
-        case "Go manual":           this.isAutoEnabled = false; this.automaticToggleButton.label = "Go auto"; break;
-        case "Submit solution":     this.onSubmitSolution(); break;
+World.prototype.doButtonAction = function( id, label ) {
+    switch( id ) {
+        case "delete_piece":        this.deleteSelectedPiece(); break;
+        case "new_piece":           this.addNewPiece(); break;
+        case "toggle_auto":         this.isAutoEnabled = !this.isAutoEnabled; 
+                                    if( this.isAutoEnabled )
+                                        this.automaticToggleButton.label = "Go manual"; 
+                                    else
+                                        this.automaticToggleButton.label = "Go auto"; 
+                                    break;
+        case "submit_solution":     this.onSubmitSolution(); break;
+        case "leaderboard":         this.setSolutionData( this.leaderboard[ parseInt( label.substring(2) ) ] ); // leaderboard buttons are labelled e.g. "N=3 : ..."
+                                    // TODO: should ask if OK to overwrite current work
+                                    break;
         default: alert("Unknown button: "+label);
     }
 };
@@ -957,14 +971,8 @@ World.prototype.doButtonAction = function( label ) {
     
     // events:
 
-    // TODO: remove this when no longer needed
-    var dataRef = new Firebase('https://circle-squaring.firebaseio.com');
+    var dataRef = new Firebase('https://circle-squaring.firebaseio.com/solutions');
     dataRef.on( 'child_added', function( data ) {
-        world.onRemoteSolutionAdded( data.val() );
-    });
-
-    var dataRef2 = new Firebase('https://circle-squaring.firebaseio.com/solutions');
-    dataRef2.on( 'child_added', function( data ) {
         world.onRemoteSolutionAdded( data.val() );
     });
 
