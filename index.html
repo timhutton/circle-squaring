@@ -701,7 +701,7 @@ World.prototype.draw = function( canvas ) {
             timeDiff = yearDifference.toFixed(0) + " year(s) ago: ";
         context.fillText( timeDiff + update.text, 10, 700 - 20*i );
     }
-    context.fillText( "Most recent events:", 10, 700 - 20*numUpdatesToShow );
+    context.fillText( "Most recent of "+this.updates.length+" events:", 10, 700 - 20*numUpdatesToShow );
 };
 // --------------------------------------
 World.prototype.isValidSolution = function() {
