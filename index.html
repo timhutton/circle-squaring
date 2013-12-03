@@ -996,8 +996,8 @@ MyCanvas.prototype.doButtonAction = function( label ) {
     switch( label ) {
         case "Delete piece":        this.world.deleteSelectedPiece(); break;
         case "New piece":           this.world.addNewPiece(); break;
-        case "Go auto":             this.world.isAutoEnabled = true; this.automaticToggleButton.label = "Go manual"; break;
-        case "Go manual":           this.world.isAutoEnabled = false; this.automaticToggleButton.label = "Go auto"; break;
+        case "Go auto":             this.world.isAutoEnabled = true; this.automaticToggleButton.label = "Go manual"; alert('gone auto'); break;
+        case "Go manual":           this.world.isAutoEnabled = false; this.automaticToggleButton.label = "Go auto"; alert('gone manual'); break;
         case "Submit solution":     var dataRef = new Firebase("https://circle-squaring.firebaseio.com/solutions"); 
                                     dataRef.push( this.world.getSolutionData() ); 
                                     break;
