@@ -793,12 +793,12 @@ World.prototype.clipPiecesAgainstOthers = function() {
     }
 };
 // --------------------------------------
-World.prototype.adaptPieces = function() {
+World.prototype.adaptPieces = function( growStep ) {
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) 
         this.pieces[ iPiece ].atOrigin.removeSelfIntersectingVertices();
     this.clipPiecesAgainstTargets();
     this.clipPiecesAgainstOthers();
-    var growStep = 1.0;
+    var somethingChanged = false;
     // move vertices outwards a little on their surface normal for as long as solution remains valid
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) 
     {
@@ -843,9 +843,12 @@ World.prototype.adaptPieces = function() {
             }
             if( !newPosIsOK )
                 piece.atOrigin.points[ iPt ] = oldPos;
+            else
+                somethingChanged = true;
         }
         piece.recenter();
     }
+    return somethingChanged;
 };
 // --------------------------------------
 World.prototype.subdivideSelectedPiece = function() {
@@ -1016,8 +1019,11 @@ World.prototype.doButtonAction = function( label ) {
 
     function animate()
     {
-        if( world.isAutoEnabled )
-            world.adaptPieces();
+        if( world.isAutoEnabled ) {
+            var changed = world.adaptPieces( 1.0 );
+            if( !changed )
+                world.adaptPieces( 0.1 );
+        }
         world.draw( canvas );
 
         // request new frame
