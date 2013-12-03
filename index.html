@@ -901,6 +901,7 @@ MyCanvas.prototype.onMouseLeftDown = function( evt ) {
     // was a button pressed?
     for( var iButton = 0; iButton < this.buttons.length; ++iButton ) {
         if( this.buttons[ iButton ].onMouseLeftDown( evt ) ) {
+            alert( 'button '+iButton+' pressed' );
             this.doButtonAction( this.buttons[ iButton ].label );
             return;
         }
