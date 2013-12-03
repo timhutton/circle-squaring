@@ -628,6 +628,9 @@ function World( context ) {
         if( N==1 )
             this.iFirstLeaderboardButton = this.buttons.length-1;
     }
+
+    // we keep track of new results as they come in
+    this.updates = new Array();
 };
 // --------------------------------------
 World.prototype.draw = function( canvas ) {
@@ -667,7 +670,7 @@ World.prototype.draw = function( canvas ) {
     for( var iPiece = this.pieces.length - 1; iPiece >= 0; --iPiece )
         this.pieces[ iPiece ].draw( context );
     
-    // DEBUG: show some information
+    // show some information about the current pieces
     context.fillStyle = "rgb(0,0,0)";
     context.font="12px Arial";
     var percentageCoverage = this.getPercentCovered();
@@ -676,6 +679,29 @@ World.prototype.draw = function( canvas ) {
         context.fillText( "valid solution (no overlapping)", 10, 130 );
     else
         context.fillText( "overlapping detected!", 10, 130 );
+        
+    // show the last few updates that have been happening
+    var numUpdatesToShow = Math.min( 5, this.updates.length );
+    var timeNow = new Date();
+    for( var i = 0; i < numUpdatesToShow; ++i ) {
+        var update = this.updates[ i ]
+        var msPerMinute = 1000*60;
+        var minuteDifference = ( timeNow.getTime() - update.time.getTime() ) / msPerMinute
+        var hourDifference = minuteDifference/60;
+        var dayDifference = minuteDifference/24;
+        var yearDifference = minuteDifference/365;
+        var timeDiff = "";
+        if( minuteDifference < 60 )
+            timeDiff = minuteDifference.toFixed(0) + " minute(s) ago: ";
+        else if( hourDifference < 24 )
+            timeDiff = hourDifference.toFixed(0) + " hour(s) ago: ";
+        else if( dayDifference < 365 )
+            timeDiff = dayDifference.toFixed(0) + " day(s) ago: ";
+        else
+            timeDiff = yearDifference.toFixed(0) + " year(s) ago: ";
+        context.fillText( timeDiff + update.text, 10, 700 - 20*i );
+    }
+    context.fillText( "Most recent events:", 10, 700 - 20*numUpdatesToShow );
 };
 // --------------------------------------
 World.prototype.isValidSolution = function() {
@@ -929,12 +955,24 @@ World.prototype.setSolutionData = function( solution ) {
 };
 // --------------------------------------
 World.prototype.onRemoteSolutionAdded = function( solution ) {
-    if( solution.N < 10 && (!this.leaderboard[ solution.N ] || solution.percent > this.leaderboard[ solution.N ].percent ) ) {
+    // reject entries we're not interested in
+    if( !solution.N || solution.N < 1 || solution.N > 10 )
+        return;
+    // keep track of the winners on the leaderboard
+    if( !this.leaderboard[ solution.N ] || solution.percent > this.leaderboard[ solution.N ].percent ) {
         this.leaderboard[ solution.N ] = solution;
         var iButton = this.iFirstLeaderboardButton + solution.N - 1;
         this.buttons[ iButton ].label = "N="+solution.N+" : "+this.leaderboard[ solution.N ].percent.toFixed(2)+"% ("+this.leaderboard[ solution.N ].username+")";
         this.buttons[ iButton ].isEnabled = true;
     }
+    // add all the entries to the updates list
+    this.updates.push( 
+        { 
+            time: new Date( solution.timestamp ), 
+            text: "New record for N=" + solution.N + ": " + solution.percent.toFixed(2) + "% found by " + solution.username
+        } );
+    this.updates.sort( function( a, b ) { return a.time.getTime() < b.time.getTime(); } );
+    // TODO: remove ones that weren't records (submitted before getting a server response about the leaderboard)
 };
 // --------------------------------------
 World.prototype.onSubmitSolution = function() {
