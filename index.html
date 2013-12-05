@@ -103,8 +103,8 @@ Point2D.prototype.normalize = function() {
 // ======================================
 // Transform class
 function Transform( r, p ) {
-    this.rotate = r;           // radians
-    this.translate = p;        // Point2D
+    this.rotate = r;                             // radians
+    this.translate = new Point2D( p.x, p.y );    // Point2D
 };
 // --------------------------------------
 Transform.prototype.apply = function( p ) {
@@ -638,6 +638,7 @@ function World( context ) {
     this.automaticToggleButton = this.buttons[2] = new Button("Go manual", "toggle_auto", 205, 20, context );
     this.automaticToggleButton.isEnabled = true;
     this.submitSolutionButton = this.buttons[3] = new Button("Submit solution", "submit_solution", 340, 20, context );
+    this.clonePieceButton = this.buttons[4] = new Button("Clone piece", "clone_piece", 15, 60, context );
     // TODO: have button return size, to allow auto-positioning
 
     for( var N = 1; N <= 10; ++N ) {
@@ -662,7 +663,7 @@ World.prototype.draw = function( canvas ) {
     context.closePath();
     
     // update the buttons
-    this.deletePieceButton.isEnabled = this.isAnyPieceSelected();
+    this.clonePieceButton.isEnabled = this.deletePieceButton.isEnabled = this.isAnyPieceSelected();
     this.newPieceButton.isEnabled = !this.isAutoEnabled;
     var isCurrentBest = false;
     if( this.pieces.length <1 || this.pieces.length >10 )
@@ -773,6 +774,19 @@ World.prototype.deleteSelectedPiece = function() {
             this.pieces.splice( iPiece, 1 );
 };
 // --------------------------------------
+World.prototype.cloneSelectedPiece = function() {
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
+        if( this.pieces[ iPiece ].isSelected() )
+            var sourcePiece = this.pieces[ iPiece ];
+    var p = new Piece();
+    for( var iPt = 0; iPt < sourcePiece.atOrigin.points.length; ++iPt )
+        p.atOrigin.points[ iPt ] = new Point2D( sourcePiece.atOrigin.points[ iPt ].x, sourcePiece.atOrigin.points[ iPt ].y );
+    for( var iTarget = 0; iTarget < sourcePiece.originToTarget.length; ++iTarget )
+        p.originToTarget[ iTarget ] = new Transform( sourcePiece.originToTarget[ iTarget ].rotate, sourcePiece.originToTarget[ iTarget ].translate );
+    sourcePiece.state = PieceStateEnum.inactive;
+    this.pieces.unshift( p ); // add to start of list, so it appears on top
+};
+// --------------------------------------
 World.prototype.clipPiecesAgainstTargets = function() {
     for( var iPiece = this.pieces.length-1; iPiece >=0; --iPiece ) 
     {
@@ -854,7 +868,7 @@ World.prototype.adaptPieces = function( growStep ) {
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) 
     {
         var piece = this.pieces[ iPiece ];
-        piece.subdivide( 30 );
+        piece.subdivide( 20 );
         piece.removeVerticesCloserThan( 5 );
         for( var iPt = 0; iPt < piece.atOrigin.points.length; ++iPt ) 
         {
@@ -1007,6 +1021,7 @@ World.prototype.onSubmitSolution = function() {
 World.prototype.doButtonAction = function( id, label ) {
     switch( id ) {
         case "delete_piece":        this.deleteSelectedPiece(); break;
+        case "clone_piece":         this.cloneSelectedPiece(); break;
         case "new_piece":           this.addNewPiece(); break;
         case "toggle_auto":         this.isAutoEnabled = !this.isAutoEnabled; 
                                     if( this.isAutoEnabled )
