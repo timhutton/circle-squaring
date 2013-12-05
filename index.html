@@ -869,7 +869,7 @@ World.prototype.adaptPieces = function( growStep ) {
     {
         var piece = this.pieces[ iPiece ];
         piece.subdivide( 20 );
-        piece.removeVerticesCloserThan( 5 );
+        piece.removeVerticesCloserThan( 3 );
         for( var iPt = 0; iPt < piece.atOrigin.points.length; ++iPt ) 
         {
             var oldPos = new Point2D( piece.atOrigin.points[ iPt ].x, piece.atOrigin.points[ iPt ].y );
