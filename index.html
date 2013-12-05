@@ -383,7 +383,7 @@ Piece.prototype.onMouseMove = function( evt ) {
                 }
             }
             // in position for rotating the piece?
-            if( this.atOrigin.isPointNearEdge( pAtOrigin, this.vertexRadius ) ) {
+            if( this.atOrigin.isPointNearEdge( pAtOrigin, this.vertexRadius*2 ) ) {
                 this.state = PieceStateEnum.rotating;
                 this.draggingPoint = pAtOrigin;
                 this.whichTargetSelected = iTarget;
