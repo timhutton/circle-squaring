@@ -61,7 +61,15 @@ function lineSegmentsIntersect( p, p2, q, q2 ) {
     var t = crossProduct2D(sub(q, p), s) / denominator;
 
     return (t >= 0) && (t <= 1) && (u >= 0) && (u <= 1);
-};
+}
+// --------------------------------------
+function dot( a, b ) {
+    return a.x * b.x + a.y * b.y;
+}
+// --------------------------------------
+function angleBetweenTwoVectors( a, b ) {
+    return Math.acos( dot( a, b ) / ( a.len() * b.len() ) );
+}
 // ======================================
 // Point2D class
 function Point2D( x, y ) {
@@ -97,8 +105,12 @@ Point2D.prototype.dist = function( p ) {
     return Math.sqrt( Math.pow( this.x - p.x, 2 ) + Math.pow( this.y - p.y, 2 ) );
 };
 // --------------------------------------
+Point2D.prototype.len = function() {
+    return Math.sqrt( this.x*this.x + this.y*this.y );
+}
+// --------------------------------------
 Point2D.prototype.normalize = function() {
-    return this.div( Math.sqrt( this.x*this.x + this.y*this.y ) );
+    return this.div( this.len() );
 };
 // ======================================
 // Transform class
@@ -503,6 +515,22 @@ Piece.prototype.removeVerticesCloserThan = function( minEdgeLength ) {
     } while( removedOne );
 };
 // --------------------------------------
+Piece.prototype.removeVerticesStraighterThan = function( minAngle ) {
+    do {
+        var removedOne = false;
+        for( var iPt = 0; iPt < this.atOrigin.points.length; ++iPt )
+        {
+            var edge1 = sub( this.atOrigin.points[ iPt ], this.atOrigin.points[ (iPt+1)%this.atOrigin.points.length ] );
+            var edge2 = sub( this.atOrigin.points[ (iPt+this.atOrigin.points.length-1)%this.atOrigin.points.length ], this.atOrigin.points[ iPt ]  );
+            if( angleBetweenTwoVectors( edge1, edge2 ) < minAngle ) {
+                this.removeVertex( iPt );
+                removedOne = true;
+                break;
+            }
+        }
+    } while( removedOne );
+};
+// --------------------------------------
 Piece.prototype.removeSelfIntersectingVertices = function() {
     // does any line segment cross any other?
     for( var iPt = this.atOrigin.points.length-1; iPt >= 0; --iPt )
@@ -551,8 +579,12 @@ function Button( label, id, x, y, ctx ) {
         this.shadowPolygon.points[ i ] = add( this.polygon.points[ i ], new Point2D( shadowOffset, shadowOffset ) );
 };
 // --------------------------------------
+Button.prototype.getWidth = function() {
+    return this.polygon.points[1].x - this.polygon.points[0].x;
+};
+// --------------------------------------
 Button.prototype.setWidth = function( width ) {
-    var deltaWidth = width - ( this.polygon.points[1].x - this.polygon.points[0].x );
+    var deltaWidth = width - this.getWidth();
     this.polygon.points[1].x += deltaWidth;
     this.polygon.points[2].x += deltaWidth;
     this.shadowPolygon.points[1].x += deltaWidth;
@@ -633,13 +665,22 @@ function World( context ) {
     
     this.buttons = new Array();
     
-    this.deletePieceButton = this.buttons[0] = new Button( "Delete piece", "delete_piece", 15, 20, context );
-    this.newPieceButton = this.buttons[1] = new Button( "New piece", "new_piece", 113, 20, context );
-    this.automaticToggleButton = this.buttons[2] = new Button("Go manual", "toggle_auto", 205, 20, context );
+    var buttonX = 15;
+    var buttonSep = 10;
+    this.deletePieceButton = this.buttons[0] = new Button( "Delete piece", "delete_piece", buttonX, 20, context );
+    buttonX += this.buttons[0].getWidth() + buttonSep;
+    this.newPieceButton = this.buttons[1] = new Button( "New piece", "new_piece", buttonX, 20, context );
+    buttonX += this.buttons[1].getWidth() + buttonSep;
+    this.automaticToggleButton = this.buttons[2] = new Button("Go manual", "toggle_auto", buttonX, 20, context );
+    buttonX += this.buttons[2].getWidth() + buttonSep;
     this.automaticToggleButton.isEnabled = true;
-    this.submitSolutionButton = this.buttons[3] = new Button("Submit solution", "submit_solution", 340, 20, context );
-    this.clonePieceButton = this.buttons[4] = new Button("Clone piece", "clone_piece", 15, 60, context );
-    // TODO: have button return size, to allow auto-positioning
+    this.submitSolutionButton = this.buttons[3] = new Button("Submit solution", "submit_solution", buttonX, 20, context );
+    buttonX = 15;
+    this.clonePieceButton = this.buttons[4] = new Button("Clone piece", "clone_piece", buttonX, 60, context );
+    buttonX += this.buttons[4].getWidth() + buttonSep;
+    this.subdividePieceButton = this.buttons[5] = new Button("Subdivide piece", "subdivide_piece", buttonX, 60, context );
+    buttonX += this.buttons[5].getWidth() + buttonSep;
+    this.simplifyPieceButton = this.buttons[6] = new Button("Simplify piece", "simplify_piece", buttonX, 60, context );
 
     for( var N = 1; N <= 10; ++N ) {
         this.buttons.push( new Button( "N="+N+" : unknown", "leaderboard", 900, 70+N*40, context ) );
@@ -663,7 +704,7 @@ World.prototype.draw = function( canvas ) {
     context.closePath();
     
     // update the buttons
-    this.clonePieceButton.isEnabled = this.deletePieceButton.isEnabled = this.isAnyPieceSelected();
+    this.simplifyPieceButton.isEnabled = this.subdividePieceButton.isEnabled = this.clonePieceButton.isEnabled = this.deletePieceButton.isEnabled = this.isAnyPieceSelected();
     this.newPieceButton.isEnabled = !this.isAutoEnabled;
     var isCurrentBest = false;
     if( this.pieces.length <1 || this.pieces.length >10 )
@@ -859,7 +900,7 @@ World.prototype.clipPiecesAgainstOthers = function() {
 };
 // --------------------------------------
 World.prototype.adaptPieces = function( growStep ) {
-    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) 
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
         this.pieces[ iPiece ].removeSelfIntersectingVertices();
     this.clipPiecesAgainstTargets();
     this.clipPiecesAgainstOthers();
@@ -914,7 +955,13 @@ World.prototype.adaptPieces = function( growStep ) {
 World.prototype.subdivideSelectedPiece = function() {
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
         if( this.pieces[ iPiece ].isSelected() )
-            this.pieces[ iPiece ].subdivide( 40 );
+            this.pieces[ iPiece ].subdivide( 10 );
+};
+// --------------------------------------
+World.prototype.simplifySelectedPiece = function() {
+    for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
+        if( this.pieces[ iPiece ].isSelected() )
+            this.pieces[ iPiece ].removeVerticesStraighterThan( 0.1 );
 };
 // --------------------------------------
 World.prototype.isAnyPieceSelected = function() {
@@ -1022,6 +1069,8 @@ World.prototype.doButtonAction = function( id, label ) {
     switch( id ) {
         case "delete_piece":        this.deleteSelectedPiece(); break;
         case "clone_piece":         this.cloneSelectedPiece(); break;
+        case "subdivide_piece":     this.subdivideSelectedPiece(); break;
+        case "simplify_piece":      this.simplifySelectedPiece(); break;
         case "new_piece":           this.addNewPiece(); break;
         case "toggle_auto":         this.isAutoEnabled = !this.isAutoEnabled; 
                                     if( this.isAutoEnabled )
