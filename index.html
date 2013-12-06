@@ -713,7 +713,7 @@ World.prototype.draw = function( canvas ) {
         isCurrentBest = true;
     else if( isValidSolution && typeof this.leaderboard[ this.pieces.length ] == "undefined" )
         isCurrentBest = true;
-    this.submitSolutionButton.isEnabled = isCurrentBest;
+    this.submitSolutionButton.isEnabled = (this.updates.length > 0) && isCurrentBest;
     
     // draw the buttons
     for( var iButton = 0; iButton < this.buttons.length; ++iButton )
