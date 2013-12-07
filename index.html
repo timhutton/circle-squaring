@@ -348,7 +348,7 @@ Piece.prototype.draw = function( ctx ) {
         ctx.stroke();
         ctx.closePath();
     }
-    else if( this.state == PieceStateEnum.translating ) {
+    else if( this.state == PieceStateEnum.translating || this.state == PieceStateEnum.highlighted ) {
         // draw a cross to show that piece can be moved like this
         ctx.strokeStyle = "rgba(0,0,0,0.2)";
         ctx.lineWidth = this.vertexRadius;
@@ -420,6 +420,7 @@ Piece.prototype.onMouseMove = function( evt ) {
         if( this.atOrigin.contains( pAtOrigin ) )
         {
             this.state = PieceStateEnum.highlighted;
+            this.draggingPoint = mousePos;
             this.whichTargetSelected = iTarget;
             return;
         }
@@ -436,8 +437,7 @@ Piece.prototype.onMouseLeftDown = function( evt ) {
             return false;
             
         case PieceStateEnum.highlighted:
-            this.state = PieceStateEnum.selected;
-            this.onMouseMove( evt ); // update the piece's state based on the mouse position
+            this.state = PieceStateEnum.translating;
             return true; // no other piece should get this mouse click
             
         case PieceStateEnum.inactive:
