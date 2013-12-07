@@ -748,8 +748,8 @@ World.prototype.draw = function( canvas ) {
         var msPerMinute = 1000*60;
         var minuteDifference = ( timeNow.getTime() - update.time.getTime() ) / msPerMinute
         var hourDifference = minuteDifference/60;
-        var dayDifference = minuteDifference/24;
-        var yearDifference = minuteDifference/365;
+        var dayDifference = hourDifference/24;
+        var yearDifference = dayDifference/365;
         var timeDiff = "";
         if( minuteDifference < 60 )
             timeDiff = minuteDifference.toFixed(0) + " minute(s) ago: ";
