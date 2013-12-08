@@ -102,11 +102,11 @@ Point2D.prototype.div = function( f ) {
 };
 // --------------------------------------
 Point2D.prototype.dist = function( p ) {
-    return Math.sqrt( Math.pow( this.x - p.x, 2 ) + Math.pow( this.y - p.y, 2 ) );
+    return Math.sqrt( sqr( this.x - p.x ) + sqr( this.y - p.y ) );
 };
 // --------------------------------------
 Point2D.prototype.len = function() {
-    return Math.sqrt( this.x*this.x + this.y*this.y );
+    return Math.sqrt( sqr( this.x ) + sqr( this.y ) );
 }
 // --------------------------------------
 Point2D.prototype.normalize = function() {
@@ -767,6 +767,21 @@ World.prototype.draw = function( canvas ) {
         context.fillText( "Loading leaderboard...", 10, 700 - 20*numUpdatesToShow );
 };
 // --------------------------------------
+World.prototype.isPointInsideTarget = function( point, iTarget ) {
+    switch( iTarget ) {
+        case 0: return( dist2( point, this.circleCenter ) < sqr( this.circleRadius ) );
+        default: return( this.targets[ iTarget ].contains( point ) );
+    }
+};
+// --------------------------------------
+World.prototype.isPolygonInsideTarget = function( polygon, iTarget ) {
+    // simply check that all vertices are inside (assumes targets are convex)
+    for( var iPt = 0; iPt < polygon.points.length; ++iPt )
+        if( this.isPointInsideTarget( polygon.points[ iPt ], iTarget ) )
+            return false;
+    return true;
+};
+// --------------------------------------
 World.prototype.isValidSolution = function() {
     var polysOnTarget = new Array();
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
@@ -782,7 +797,7 @@ World.prototype.isValidSolution = function() {
             // transform each piece onto this target
             polysOnTarget[ iPiece ] = this.pieces[ iPiece ].getPolygonOnTarget( iTarget );
             // invalid if any piece not fully contained in each target
-            if( polysOnTarget[ iPiece ].getPolygonRelationWith( this.targets[ iTarget ] ) != PolygonRelationEnum.contained ) 
+            if( !this.isPolygonInsideTarget( polysOnTarget[ iPiece ], iTarget ) ) 
                 return false;
             // invalid if any piece not fully outside any other
             for( var iPiece2 = 0; iPiece2 < iPiece; ++iPiece2 ) 
@@ -838,7 +853,7 @@ World.prototype.clipPiecesAgainstTargets = function() {
             var polygonOnTarget = piece.getPolygonOnTarget( iTarget );
             for( iPt = polygonOnTarget.points.length-1; iPt >= 0; --iPt ) 
             {
-                if( !this.targets[ iTarget ].contains( polygonOnTarget.points[ iPt ] ) )
+                if( !this.isPointInsideTarget( polygonOnTarget.points[ iPt ], iTarget ) )
                 {
                     piece.removeVertex( iPt );
                     if( piece.atOrigin.points.length < 3 )
@@ -922,7 +937,7 @@ World.prototype.adaptPieces = function( growStep ) {
                 for( var iTarget = 0; iTarget < piece.originToTarget.length; ++iTarget ) {
                     var pOnTarget = piece.originToTarget[ iTarget ].apply( piece.atOrigin.points[ iPt ] );
                     // check whether the point is still inside the target shape
-                    if( !this.targets[ iTarget ].contains( pOnTarget ) ) {
+                    if( !this.isPointInsideTarget( pOnTarget, iTarget ) ) {
                         newPosIsOK = false;
                         break;
                     }
