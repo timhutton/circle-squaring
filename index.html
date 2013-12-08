@@ -777,7 +777,7 @@ World.prototype.isPointInsideTarget = function( point, iTarget ) {
 World.prototype.isPolygonInsideTarget = function( polygon, iTarget ) {
     // simply check that all vertices are inside (assumes targets are convex)
     for( var iPt = 0; iPt < polygon.points.length; ++iPt )
-        if( this.isPointInsideTarget( polygon.points[ iPt ], iTarget ) )
+        if( !this.isPointInsideTarget( polygon.points[ iPt ], iTarget ) )
             return false;
     return true;
 };
