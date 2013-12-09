@@ -1,13 +1,13 @@
+// local:
 #include "polygon.h"
 #include "transform.h"
 
+// STL:
 #include <vector>
 
 class Piece
 {
 	public:
-
-		Piece();
 
 		void getPolygonOnTarget( int iTarget, Polygon& output ) const;
 
@@ -16,12 +16,8 @@ class Piece
 		void removeVerticesStraighterThan( float minAngle );
 		void removeSelfIntersectingVertices();
 
-	private:
-
         void recenter();
 		void removeVertex( int iPt );
-
-	private:
 
 		Polygon atOrigin;
 		std::vector< Transform > originToTarget;

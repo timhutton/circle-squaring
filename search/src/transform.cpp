@@ -1,16 +1,22 @@
-// ======================================
-// Transform class
-function Transform( r, p ) {
-    this.rotate = r;                             // radians
-    this.translate = new Point2D( p.x, p.y );    // Point2D
-};
-// --------------------------------------
-Transform.prototype.apply = function( p ) {
-    return new Point2D( p.x * Math.cos( this.rotate ) - p.y * Math.sin( this.rotate ) + this.translate.x, 
-                        p.x * Math.sin( this.rotate ) + p.y * Math.cos( this.rotate ) + this.translate.y );
-};
-// --------------------------------------
-Transform.prototype.applyInverse = function( p ) {
-    return new Point2D( ( p.x - this.translate.x ) * Math.cos( -this.rotate ) - ( p.y - this.translate.y ) * Math.sin( -this.rotate ), 
-                        ( p.x - this.translate.x ) * Math.sin( -this.rotate ) + ( p.y - this.translate.y ) * Math.cos( -this.rotate ) );
-};
+// local:
+#include "transform.h"
+
+// stdlib:
+#include <math.h>
+
+Transform::Transform( float r, const Point2D& p )
+	: rotate(r), translate( p.x, p.y )
+{
+}
+
+Point2D Transform::apply( const Point2D& p ) const
+{
+    return Point2D( p.x * cos( rotate ) - p.y * sin( rotate ) + translate.x, 
+                    p.x * sin( rotate ) + p.y * cos( rotate ) + translate.y );
+}
+
+Point2D Transform::applyInverse( const Point2D& p ) const
+{
+    return Point2D( ( p.x - translate.x ) * cos( -rotate ) - ( p.y - translate.y ) * sin( -rotate ), 
+                    ( p.x - translate.x ) * sin( -rotate ) + ( p.y - translate.y ) * cos( -rotate ) );
+}

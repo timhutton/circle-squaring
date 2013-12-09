@@ -1,6 +1,8 @@
-#include "point2d.h"
-#include "transform.h"
+// local:
+class Point2D;
+class Transform;
 
+// STL:
 #include <vector>
 
 class Polygon
@@ -9,8 +11,6 @@ class Polygon
 
         enum PolygonRelation { disjoint, contained, containing, intersecting };
 
-		Polygon();
-
 		float				getArea() const;
 		Point2D				getCentroid() const;
 		bool				contains( const Point2D& p ) const;
@@ -18,12 +18,10 @@ class Polygon
 		PolygonRelation		getPolygonRelationWith( const Polygon& poly ) const;
 		void				getTransformed( const Transform& t, Polygon& output ) const;
 		bool				isPointNearEdge( const Point2D& p, float tol ) const;
-		void				getNormal( int iPt, Point2D& output ) const;
+		Point2D				getNormal( int iPt ) const;
 		bool				isSelfIntersecting() const;
 
-		static void			getCircle( const Point2D& center, float radius, int n );
-
-	private:
+		static Polygon		getCircle( const Point2D& center, float radius, int n );
 
 		std::vector< Point2D > points;
 };

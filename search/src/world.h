@@ -1,6 +1,8 @@
+// local:
 #include "piece.h"
-#include "point2d.h"
-#include "polygon.h"
+
+// STL:
+#include <string>
 
 class World
 {
@@ -11,12 +13,21 @@ class World
 		bool isValidSolution() const; 
 		float getPercentCovered() const;
 
-		void adaptPieces();
+		void addRandomPiece();
+		int getNumberOfPieces() const { return static_cast< int >( pieces.size() ); }
+		void deletePieces() { pieces.clear(); }
+
+		bool adaptPieces( float growStep, float minEdgeLength ); // returns whether something changed
+
+		std::string getAsOBJFileFormat() const;
 
 	private:
 
 		void clipPiecesAgainstTargets();
 		void clipPiecesAgainstOthers();
+
+		bool isInsideTarget( int iTarget, const Point2D& p ) const;
+		bool isInsideTarget( int iTarget, const Polygon& poly ) const;
 
 	private:
 
@@ -25,6 +36,8 @@ class World
     
 		Point2D squareCenter;
 		float squareRadius;
+
+		int numTargets;
 
 	    std::vector< Piece > pieces;
 };
