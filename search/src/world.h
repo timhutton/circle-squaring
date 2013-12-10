@@ -21,6 +21,8 @@ class World
 
 		std::string getAsOBJFileFormat() const;
 
+	    std::vector< Piece > pieces;
+
 	private:
 
 		void clipPiecesAgainstTargets();
@@ -39,5 +41,4 @@ class World
 
 		int numTargets;
 
-	    std::vector< Piece > pieces;
 };

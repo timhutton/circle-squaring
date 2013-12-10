@@ -236,6 +236,18 @@ string World::getAsOBJFileFormat() const // TODO: add to js code
 	oss << "# Circle target has center at (" << circleCenter.x << "," << circleCenter.y << ") and radius " << circleRadius << "\n";
 	oss << "# Square target has center at (" << squareCenter.x << "," << squareCenter.y << ") and square radius " << squareRadius << "\n";
 	oss << "# N=" << pieces.size() << " pieces, giving " << getPercentCovered() << "% coverage\n";
+	// print transforms
+	for( int iPiece = 0; iPiece < static_cast< int >( pieces.size() ); ++iPiece )
+	{
+		oss << "# Transforms for piece " << iPiece+1 << ":";
+		for( int iTarget = 0; iTarget < numTargets; ++iTarget )
+		{
+			oss << " " << pieces[ iPiece ].originToTarget[ iTarget ].rotate << " rad";
+			oss << " (" << pieces[ iPiece ].originToTarget[ iTarget ].translate.x << "," << pieces[ iPiece ].originToTarget[ iTarget ].translate.y << "),";
+		}
+		oss << "\n";
+	}
+	// print vertices
 	int iVertOffset = 1; // OBJ format has 1-based indices
 	Polygon polygonOnTarget;
 	for( int iTarget = 0; iTarget < numTargets; ++iTarget )

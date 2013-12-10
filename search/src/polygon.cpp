@@ -71,7 +71,7 @@ bool Polygon::doesLineSegmentIntersect( const Point2D& p, const Point2D& p2 ) co
 
 Polygon::PolygonRelation Polygon::getPolygonRelationWith( const Polygon& poly ) const
 {
-    for( int i = 0; i < static_cast< int >( points.size() ); ++i )
+    for( int i = 0; i < points.size(); ++i )
     {
         Point2D p = points[ i ];
         Point2D p2 = points[ (i+1)%static_cast< int >( points.size() ) ];
