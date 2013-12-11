@@ -2,6 +2,7 @@
 #include "piece.h"
 
 // STL:
+#include <sstream>
 using namespace std;
 
 void Piece::getPolygonOnTarget( int iTarget, Polygon& output ) const
@@ -92,4 +93,17 @@ void Piece::removeSelfIntersectingVertices()
             }
         }
     }
+}
+
+string Piece::getAsJSONFormat() const
+{
+	ostringstream oss;
+	oss << "{\n";
+	oss << "\"atOrigin\" : " << atOrigin.getAsJSONFormat() << ",\n";
+	oss << "\"originToTarget\" : [\n";
+	for( size_t iTarget = 0; iTarget < originToTarget.size()-1; ++iTarget )
+		oss << originToTarget[iTarget].getAsJSONFormat() << ",\n";
+	oss << originToTarget.back().getAsJSONFormat() << "\n";
+	oss << "] }\n";
+	return oss.str();
 }

@@ -20,6 +20,7 @@ class World
 		bool adaptPieces( float growStep, float minEdgeLength ); // returns whether something changed
 
 		std::string getAsOBJFileFormat() const;
+		std::string getAsJSONFormat() const;
 
 	    std::vector< Piece > pieces;
 

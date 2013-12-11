@@ -675,6 +675,12 @@ function World( context ) {
     buttonX += this.buttons[2].getWidth() + buttonSep;
     this.automaticToggleButton.isEnabled = true;
     this.submitSolutionButton = this.buttons[3] = new Button("Submit solution", "submit_solution", buttonX, 20, context );
+    buttonX += this.buttons[3].getWidth() + buttonSep;
+    this.buttons[7] = new Button("Save solution", "save_solution", buttonX, 20, context );
+    this.buttons[7].isEnabled = true;
+    buttonX += this.buttons[7].getWidth() + buttonSep;
+    this.buttons[8] = new Button("Load solution", "load_solution", buttonX, 20, context );
+    this.buttons[8].isEnabled = true;
     buttonX = 15;
     this.clonePieceButton = this.buttons[4] = new Button("Clone piece", "clone_piece", buttonX, 60, context );
     buttonX += this.buttons[4].getWidth() + buttonSep;
@@ -1080,6 +1086,14 @@ World.prototype.onSubmitSolution = function() {
     dataRef.push( this.getSolutionData() ); 
 };
 // --------------------------------------
+World.prototype.onSaveSolution = function() {
+    prompt( "Copy JSON data from here:", JSON.stringify( this.getSolutionData() ) );
+};
+// --------------------------------------
+World.prototype.onLoadSolution = function() {
+    this.setSolutionData( JSON.parse( prompt( "Paste JSON data here:", "" ) ) );
+};
+// --------------------------------------
 World.prototype.doButtonAction = function( id, label ) {
     switch( id ) {
         case "delete_piece":        this.deleteSelectedPiece(); break;
@@ -1094,6 +1108,8 @@ World.prototype.doButtonAction = function( id, label ) {
                                         this.automaticToggleButton.label = "Go auto"; 
                                     break;
         case "submit_solution":     this.onSubmitSolution(); break;
+        case "save_solution":       this.onSaveSolution(); break;
+        case "load_solution":       this.onLoadSolution(); break;
         case "leaderboard":         this.setSolutionData( this.leaderboard[ parseInt( label.substring(2) ) ] ); // leaderboard buttons are labelled e.g. "N=3 : ..."
                                     // TODO: should ask if OK to overwrite current work
                                     break;

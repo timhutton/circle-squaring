@@ -102,11 +102,20 @@ void Optimize()
 				{
 					cout << "\nFound improved result for N=" << world.getNumberOfPieces() << " : " << world.getPercentCovered() << "\n";
 					bestEverCoverage = bestCoverage;
-					ostringstream filename;
-					filename << "output_N" << world.getNumberOfPieces() << ".obj";
-					ofstream out( filename.str().c_str() );
-					out << world.getAsOBJFileFormat();
-					cout << "\nWrote " << filename.str() << "\n";
+					{
+						ostringstream filename;
+						filename << "output_N" << world.getNumberOfPieces() << ".obj";
+						ofstream out( filename.str().c_str() );
+						out << world.getAsOBJFileFormat();
+						cout << "\nWrote " << filename.str() << "\n";
+					}
+					{
+						ostringstream filename;
+						filename << "output_N" << world.getNumberOfPieces() << ".json";
+						ofstream out( filename.str().c_str() );
+						out << world.getAsJSONFormat();
+						cout << "\nWrote " << filename.str() << "\n";
+					}
 				}
 				else
 				{

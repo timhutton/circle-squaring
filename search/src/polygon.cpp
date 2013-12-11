@@ -6,6 +6,10 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
+// STL:
+#include <sstream>
+using namespace std;
+
 float Polygon::getArea() const
 {
     float area=0.0f;
@@ -71,7 +75,7 @@ bool Polygon::doesLineSegmentIntersect( const Point2D& p, const Point2D& p2 ) co
 
 Polygon::PolygonRelation Polygon::getPolygonRelationWith( const Polygon& poly ) const
 {
-    for( int i = 0; i < points.size(); ++i )
+    for( int i = 0; i < static_cast< int >( points.size() ); ++i )
     {
         Point2D p = points[ i ];
         Point2D p2 = points[ (i+1)%static_cast< int >( points.size() ) ];
@@ -142,4 +146,15 @@ bool Polygon::isSelfIntersecting() const
         }
     }
     return false;
+}
+
+string Polygon::getAsJSONFormat() const
+{
+	ostringstream oss;
+	oss << "{ \"points\" : [\n";
+	for( size_t iPoint = 0; iPoint < points.size()-1; ++iPoint )
+		oss << points[iPoint].getAsJSONFormat() << ",\n";
+	oss << points.back().getAsJSONFormat() << "\n";
+	oss << "] }";
+	return oss.str();
 }

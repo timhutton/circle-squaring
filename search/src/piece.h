@@ -19,6 +19,8 @@ class Piece
         void recenter();
 		void removeVertex( int iPt );
 
+		std::string getAsJSONFormat() const;
+
 		Polygon atOrigin;
 		std::vector< Transform > originToTarget;
 };

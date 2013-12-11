@@ -4,6 +4,7 @@ class Transform;
 
 // STL:
 #include <vector>
+#include <string>
 
 class Polygon
 {
@@ -20,6 +21,8 @@ class Polygon
 		bool				isPointNearEdge( const Point2D& p, float tol ) const;
 		Point2D				getNormal( int iPt ) const;
 		bool				isSelfIntersecting() const;
+
+		std::string			getAsJSONFormat() const;
 
 		static Polygon		getCircle( const Point2D& center, float radius, int n );
 

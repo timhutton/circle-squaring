@@ -1,3 +1,6 @@
+// STL:
+#include <string>
+
 class Point2D
 {
 	public:
@@ -12,6 +15,8 @@ class Point2D
 
 		float len() const;
 		Point2D normalize();
+
+		std::string getAsJSONFormat() const;
 
 		float x, y;
 };

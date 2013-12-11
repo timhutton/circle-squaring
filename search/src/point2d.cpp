@@ -4,6 +4,10 @@
 // stdlib:
 #include <math.h>
 
+// STL:
+#include <sstream>
+using namespace std;
+
 Point2D::Point2D( float x, float y ) 
 	: x(x), y(y) 
 {
@@ -50,6 +54,13 @@ float Point2D::len() const
 Point2D Point2D::normalize() 
 { 
 	return div( len() ); 
+}
+
+string Point2D::getAsJSONFormat() const
+{
+	ostringstream oss;
+	oss << "{ \"x\" : " << x << ", \"y\" : " << y << " }";
+	return oss.str();
 }
 
 float crossProduct2D( const Point2D& v,const Point2D& w ) 
@@ -124,3 +135,4 @@ float angleBetweenTwoVectors( const Point2D& a, const Point2D& b )
 {
     return acos( dot( a, b ) / ( a.len() * b.len() ) );
 }
+

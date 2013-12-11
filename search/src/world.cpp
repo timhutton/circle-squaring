@@ -268,3 +268,20 @@ string World::getAsOBJFileFormat() const // TODO: add to js code
 	}
 	return oss.str();
 }
+
+string World::getAsJSONFormat() const // TODO: add to js code
+{
+	ostringstream oss;
+	oss << "{\n\"N\":" << pieces.size() << ",\n";
+	oss << "\"percent\" : " << getPercentCovered() << ",\n";
+	oss << "\"circle\" : { \"center\" : { \"x\" : " << circleCenter.x << ", \"y\" : " << circleCenter.y << " }, \"radius\" : " << circleRadius << " },\n";
+	oss << "\"square\" : { \"center\" : { \"x\" : " << squareCenter.x << ", \"y\" : " << squareCenter.y << " }, \"radius\" : " << squareRadius << " },\n";
+	oss << "\"pieces\" : [\n";
+	for( size_t iPiece = 0; iPiece < pieces.size()-1; ++iPiece )
+		oss << pieces[iPiece].getAsJSONFormat() << ",\n";
+	oss << pieces.back().getAsJSONFormat() << "\n";
+	oss << "],\n";
+	oss << "\"username\" : \"search\",\n";
+	oss << "\"timestamp\" : \"2013.12.11\"\n}"; // TODO: insert timestamp!
+	return oss.str();
+}
