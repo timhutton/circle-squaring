@@ -1,5 +1,6 @@
 // local:
 #include "world.h"
+#include "utils.h"
 
 // stdlib:
 #define _USE_MATH_DEFINES
@@ -284,4 +285,32 @@ string World::getAsJSONFormat() const // TODO: add to js code
 	oss << "\"username\" : \"search\",\n";
 	oss << "\"timestamp\" : \"2013.12.11\"\n}"; // TODO: insert timestamp!
 	return oss.str();
+}
+
+float ToFloat( const std::string& s )
+{
+	return static_cast< float >( atof( s.c_str() ) );
+}
+
+void World::loadFromJSONFormat( const std::string& json )
+{
+	vector<string> tokens = tokenizeString( json, ",\"{}[]:\n\t " ); // (no substitute for a proper parser)
+	int numPieces = atoi( tokens[1].c_str() );
+	vector<string>::const_iterator it = tokens.begin();
+	while( *++it != "points" );
+	for( int iPiece = 0; iPiece < numPieces; ++iPiece )
+	{
+		Piece piece;
+		while( *++it != "x" );
+		do {
+			piece.atOrigin.points.push_back( Point2D( ToFloat( *(it+1) ), ToFloat( *(it+3) ) ) );
+			it += 4;
+		} while( *it=="x" );
+		while( *++it != "rotate" );
+		do {
+			piece.originToTarget.push_back( Transform( ToFloat( *(it+1) ), Point2D( ToFloat( *(it+4) ), ToFloat( *(it+6) ) ) ) );
+			it += 7;
+		} while( *it=="rotate" );
+		pieces.push_back( piece );
+	}
 }

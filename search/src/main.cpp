@@ -1,5 +1,6 @@
 // local:
 #include "world.h"
+#include "utils.h"
 
 // STL:
 #include <iostream>
@@ -14,29 +15,101 @@ using namespace std;
 #include <math.h>
 
 void GetInitialSolution( const int N, World& world );
-void Optimize();
+void OptimizeFromFile( const string& filename );
+void SearchAndOptimizeFromScratch();
 void SearchFromScratch();
 
-float randomFloat( float low, float high )
-{
-	return low + ( (high-low)*rand() ) / RAND_MAX;
-}
-
-int randomInt( int low, int high )
-{
-	return low + rand()%(high-low+1);
-}
-
-int main()
+int main( int argc, char* argv[] )
 {
 	srand( static_cast< unsigned int >( time( nullptr ) ) );
 
-	// choose your approach:
-	Optimize();
+	if( argc > 1 )
+	{
+		OptimizeFromFile( argv[1] );
+	}
+
+	// otherwise, choose your approach:
+	SearchAndOptimizeFromScratch();
 	//SearchFromScratch()
 }
 
-void Optimize()
+void OptimizeFromFile( const string& filename )
+{
+	// read solution from JSON 
+	World world;
+	{
+		ifstream in( filename.c_str() );
+		stringstream iss;
+		iss << in.rdbuf();
+		world.loadFromJSONFormat( iss.str() );
+	}
+
+	const int targetNumPieces = world.getNumberOfPieces();
+	float bestCoverage = world.getPercentCovered();
+
+	cout << "\nLoaded N=" << targetNumPieces << " : " << bestCoverage << "\n";
+
+	World previousWorld;
+
+	const float growStep = 0.1f;
+	const float edgeLength = 10.0f;
+	const float rotJiggle = static_cast< float >( 0.01f * M_PI/180.0f );
+	const float moveJiggle = 0.01f;
+
+	while( true )
+	{
+		cout << ".";
+
+		// take a snapshot of the world before we tweak it
+		previousWorld = world;
+
+		// alter it by a small amount
+		for( int iPiece = 0; iPiece < world.getNumberOfPieces(); ++iPiece )
+		{
+			for( int iTarget = 0; iTarget < 2; ++iTarget )
+			{
+				world.pieces[iPiece].originToTarget[iTarget].rotate += randomFloat(-1.0f * rotJiggle,rotJiggle);
+				world.pieces[iPiece].originToTarget[iTarget].translate.x += randomFloat(-1.0f * moveJiggle,moveJiggle);
+				world.pieces[iPiece].originToTarget[iTarget].translate.y += randomFloat(-1.0f * moveJiggle,moveJiggle);
+			}
+		}
+
+		// allow the solution to fully grow
+		bool moved;
+		do
+		{
+			moved = world.adaptPieces( growStep, edgeLength );
+		} while( world.getNumberOfPieces() == targetNumPieces && moved );
+
+		if( world.getNumberOfPieces() == targetNumPieces && world.isValidSolution() && world.getPercentCovered() > bestCoverage )
+		{
+			// adopt the improvement
+			bestCoverage = world.getPercentCovered();
+			cout << "\nFound improved result for N=" << world.getNumberOfPieces() << " : " << world.getPercentCovered() << "\n";
+			{
+				ostringstream filename;
+				filename << "optimized_N" << world.getNumberOfPieces() << ".obj";
+				ofstream out( filename.str().c_str() );
+				out << world.getAsOBJFileFormat();
+				cout << "\nWrote " << filename.str() << "\n";
+			}
+			{
+				ostringstream filename;
+				filename << "optimized_N" << world.getNumberOfPieces() << ".json";
+				ofstream out( filename.str().c_str() );
+				out << world.getAsJSONFormat();
+				cout << "\nWrote " << filename.str() << "\n";
+			}
+		}
+		else
+		{
+			// revert to the one that was better
+			world = previousWorld;
+		}
+	}
+}
+
+void SearchAndOptimizeFromScratch()
 {
 	// approach
 	// 1. Find any solution for N

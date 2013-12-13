@@ -21,6 +21,7 @@ class World
 
 		std::string getAsOBJFileFormat() const;
 		std::string getAsJSONFormat() const;
+		void loadFromJSONFormat( const std::string& json );
 
 	    std::vector< Piece > pieces;
 

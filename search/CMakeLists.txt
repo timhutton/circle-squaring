@@ -5,6 +5,7 @@ project( csq )
 
 add_executable( csq
     src/main.cpp
+	src/utils.h       src/utils.cpp
 	src/point2d.h     src/point2d.cpp
 	src/polygon.h     src/polygon.cpp
 	src/transform.h   src/transform.cpp
