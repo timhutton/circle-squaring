@@ -297,10 +297,10 @@ void World::loadFromJSONFormat( const std::string& json )
 	vector<string> tokens = tokenizeString( json, ",\"{}[]:\n\t " ); // (no substitute for a proper parser)
 	int numPieces = atoi( tokens[1].c_str() );
 	vector<string>::const_iterator it = tokens.begin();
-	while( *++it != "points" );
 	for( int iPiece = 0; iPiece < numPieces; ++iPiece )
 	{
 		Piece piece;
+		while( *++it != "points" );
 		while( *++it != "x" );
 		do {
 			piece.atOrigin.points.push_back( Point2D( ToFloat( *(it+1) ), ToFloat( *(it+3) ) ) );
