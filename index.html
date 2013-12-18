@@ -375,7 +375,6 @@ Piece.prototype.recenter = function() {
 };
 // --------------------------------------
 Piece.prototype.onMouseMove = function( mousePos ) {
-    var mousePos = new Point2D( mousePos.x, mousePos.y );
     // selected -> selected, translating, rotating or vertexDragging
     if( this.isSelected() )
     {
@@ -428,7 +427,7 @@ Piece.prototype.onMouseMove = function( mousePos ) {
     this.whichTargetSelected = -1;
 };
 // --------------------------------------
-Piece.prototype.onMouseLeftDown = function( evt ) {
+Piece.prototype.onMouseLeftDown = function( mousePos ) {
     switch( this.state )
     {
         case PieceStateEnum.selected:
@@ -448,7 +447,6 @@ Piece.prototype.onMouseLeftDown = function( evt ) {
 };
 // --------------------------------------
 Piece.prototype.onMouseLeftDrag = function( mousePos ) {
-    var mousePos = new Point2D( mousePos.x, mousePos.y );
     switch( this.state ) 
     {
         case PieceStateEnum.vertexDragging:
@@ -613,7 +611,6 @@ Button.prototype.draw = function( ctx ) {
 Button.prototype.onMouseLeftDown = function( mousePos ) {
     if( !this.isEnabled )
         return false;
-    var mousePos = new Point2D( mousePos.x, mousePos.y );
     if( this.polygon.contains( mousePos ) ) {
         this.isPressed = true;
         return true;
@@ -621,7 +618,7 @@ Button.prototype.onMouseLeftDown = function( mousePos ) {
     return false;
 };
 // --------------------------------------
-Button.prototype.onMouseLeftUp = function( evt ) {
+Button.prototype.onMouseLeftUp = function( mousePos ) {
     this.isPressed = false;
 };
 // ======================================
@@ -985,16 +982,16 @@ World.prototype.isAnyPieceSelected = function() {
     return false;
 };
 // --------------------------------------
-World.prototype.onMouseMove = function( evt ) {
+World.prototype.onMouseMove = function( mousePos ) {
     // pass the message to the pieces
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
-        this.pieces[ iPiece ].onMouseMove( evt );
+        this.pieces[ iPiece ].onMouseMove( mousePos );
 };
 // --------------------------------------
-World.prototype.onMouseLeftDown = function( evt ) {
+World.prototype.onMouseLeftDown = function( mousePos ) {
     // was a button pressed?
     for( var iButton = 0; iButton < this.buttons.length; ++iButton ) {
-        if( this.buttons[ iButton ].onMouseLeftDown( evt ) ) {
+        if( this.buttons[ iButton ].onMouseLeftDown( mousePos ) ) {
             this.doButtonAction( this.buttons[ iButton ].id, this.buttons[ iButton ].label );
             return;
         }
@@ -1002,7 +999,7 @@ World.prototype.onMouseLeftDown = function( evt ) {
     // send the message to the pieces
     var iPieceSelected = -1;
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece ) {
-        if( this.pieces[ iPiece ].onMouseLeftDown( evt ) ) {
+        if( this.pieces[ iPiece ].onMouseLeftDown( mousePos ) ) {
             iPieceSelected = iPiece;
             break; // we only allow one piece to accept the event
         }
@@ -1014,15 +1011,15 @@ World.prototype.onMouseLeftDown = function( evt ) {
     }
 };
 // --------------------------------------
-World.prototype.onMouseLeftUp = function( evt ) {
+World.prototype.onMouseLeftUp = function( mousePos ) {
     // tell the buttons
     for( var iButton = 0; iButton < this.buttons.length; ++iButton )
-        this.buttons[ iButton ].onMouseLeftUp( evt );
+        this.buttons[ iButton ].onMouseLeftUp( mousePos );
 };
 // --------------------------------------
-World.prototype.onMouseLeftDrag = function( evt ) {
+World.prototype.onMouseLeftDrag = function( mousePos ) {
     for( var iPiece = 0; iPiece < this.pieces.length; ++iPiece )
-        this.pieces[ iPiece ].onMouseLeftDrag( evt );
+        this.pieces[ iPiece ].onMouseLeftDrag( mousePos );
 };
 // --------------------------------------
 World.prototype.getSolutionData = function() {
@@ -1101,104 +1098,102 @@ World.prototype.doButtonAction = function( id, label ) {
 };
 // ======================================
 
-function App()
+(function()
 {
-    this.canvas  = document.getElementById( 'myCanvas' );
-    this.context = this.canvas.getContext( '2d' );
-    this.world   = new World( this.context );
-    this.mouseLeftDown = false;
+    var canvas  = document.getElementById( 'myCanvas' );
+    var context = canvas.getContext( '2d' );
+    var world   = new World( context );
+    var mouseLeftDown = false;
 
-    this.canvas.width = 1140;
-    this.canvas.height = 730;
-    this.world.draw( this.canvas ); 
-}
+    canvas.width = 1140;
+    canvas.height = 730;
+    world.draw( canvas ); 
 
-var myApp = new App();
+    // events:
 
-// events:
+    var dataRef = new Firebase('https://circle-squaring.firebaseio.com/solutions');
+    dataRef.on( 'child_added', function( data ) {
+        world.onRemoteSolutionAdded( data.val() );
+    });
 
-var dataRef = new Firebase('https://circle-squaring.firebaseio.com/solutions');
-dataRef.on( 'child_added', function( data ) {
-    myApp.world.onRemoteSolutionAdded( data.val() );
-});
-
-function getMousePos(canvas, evt) {
-    var rect = canvas.getBoundingClientRect();
-    return {
-      x: evt.clientX - rect.left,
-      y: evt.clientY - rect.top
-    };
-};
-      
-myApp.canvas.addEventListener( 'mousemove', function( evt ) {
-    var mousePos = getMousePos( myApp.canvas, evt );
-    if( myApp.mouseLeftDown )
-        myApp.world.onMouseLeftDrag( mousePos );
-    else
-        myApp.world.onMouseMove( mousePos );
-    myApp.world.draw( myApp.canvas );
-  }, false );
-
-myApp.canvas.addEventListener( 'mousedown', function( evt ) {
-    var mousePos = getMousePos( myApp.canvas, evt );
-    if( evt.button == 0 ) {
-        myApp.mouseLeftDown = true;
-        myApp.world.onMouseLeftDown( mousePos );
-        myApp.world.draw( myApp.canvas );
-    }
-  }, false );
-
-myApp.canvas.addEventListener( 'mouseup', function( evt ) {
-    var mousePos = getMousePos( myApp.canvas, evt );
-    if( evt.button == 0 && myApp.mouseLeftDown ) {
-        myApp.mouseLeftDown = false;
-        myApp.world.onMouseLeftUp( mousePos );
-        myApp.world.draw( myApp.canvas );
-    }
-  }, false );
-  
-myApp.canvas.addEventListener( 'mouseout', function( evt ) {
-    var mousePos = getMousePos( myApp.canvas, evt );
-    // if user drags the mouse out and then releases we won't receive the mouseUp event,
-    // so instead we treat mouseOut as mouseUp (if button is pressed)
-    if( myApp.mouseLeftDown ) {
-        myApp.mouseLeftDown = false;
-        myApp.world.onMouseLeftUp( mousePos );
-        myApp.world.draw( myApp.canvas );
-    }
-  }, false );
-
-window.requestAnimFrame = (function(callback)
-{
-    return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || window.oRequestAnimationFrame || window.msRequestAnimationFrame ||
-        function(callback) {
-            window.setTimeout(callback, 1000 / 30);
+    function getMousePos( canvas, evt ) {
+        var rect = canvas.getBoundingClientRect();
+        return {
+          x: evt.clientX - rect.left,
+          y: evt.clientY - rect.top
         };
-})();
+    };
+          
+    canvas.addEventListener( 'mousemove', function( evt ) {
+        var mousePos = getMousePos( canvas, evt );
+        if( mouseLeftDown )
+            world.onMouseLeftDrag( mousePos );
+        else
+            world.onMouseMove( mousePos );
+        world.draw( canvas );
+      }, false );
 
-function animate()
-{
-    if( myApp.world.isAutoEnabled ) {
-        var changed = myApp.world.adaptPieces( 3.0 );
-        if( !changed )
-            changed = myApp.world.adaptPieces( 1.0 );
-        if( !changed )
-            myApp.world.adaptPieces( 0.1 );
+    canvas.addEventListener( 'mousedown', function( evt ) {
+        var mousePos = getMousePos( canvas, evt );
+        if( evt.button == 0 ) {
+            mouseLeftDown = true;
+            world.onMouseLeftDown( mousePos );
+            world.draw( canvas );
+        }
+      }, false );
+
+    canvas.addEventListener( 'mouseup', function( evt ) {
+        var mousePos = getMousePos( canvas, evt );
+        if( evt.button == 0 && mouseLeftDown ) {
+            mouseLeftDown = false;
+            world.onMouseLeftUp( mousePos );
+            world.draw( canvas );
+        }
+      }, false );
+      
+    canvas.addEventListener( 'mouseout', function( evt ) {
+        var mousePos = getMousePos( canvas, evt );
+        // if user drags the mouse out and then releases we won't receive the mouseUp event,
+        // so instead we treat mouseOut as mouseUp (if button is pressed)
+        if( mouseLeftDown ) {
+            mouseLeftDown = false;
+            world.onMouseLeftUp( mousePos );
+            world.draw( canvas );
+        }
+      }, false );
+
+    window.requestAnimFrame = (function(callback)
+    {
+        return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || window.oRequestAnimationFrame || window.msRequestAnimationFrame ||
+            function(callback) {
+                window.setTimeout(callback, 1000 / 30);
+            };
+    })();
+
+    function animate()
+    {
+        if( world.isAutoEnabled ) {
+            var changed = world.adaptPieces( 3.0 );
+            if( !changed )
+                changed = world.adaptPieces( 1.0 );
+            if( !changed )
+                world.adaptPieces( 0.1 );
+        }
+        world.draw( canvas );
+
+        // request new frame
+        requestAnimFrame( animate );
     }
-    myApp.world.draw( myApp.canvas );
+    animate();
 
-    // request new frame
-    requestAnimFrame( animate );
-}
-animate();
+    document.saveSolution = function() {
+        document.getElementById( "data" ).value = JSON.stringify( world.getSolutionData(), null, "\t" );
+    };
 
-document.saveSolution = function() {
-    document.getElementById( "data" ).value = JSON.stringify( myApp.world.getSolutionData(), null, "\t" );
-};
-
-document.loadSolution = function() {
-    myApp.world.setSolutionData( JSON.parse( document.getElementById( "data" ).value ) );
-};
+    document.loadSolution = function() {
+        world.setSolutionData( JSON.parse( document.getElementById( "data" ).value ) );
+    };
+})();
 
 </script> 
 </body>
