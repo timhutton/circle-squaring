@@ -1,4 +1,4 @@
-Open [this page](http://htmlpreview.github.io/?https://github.com/timhutton/circle-squaring/blob/master/index.html) for the app.
+Open [this page](https://timhutton.github.io/circle-squaring/) for the app.
 =============================
 
 If you have any questions about how to use it then please email [tim.hutton@gmail.com](mailto:tim.hutton@gmail.com)
